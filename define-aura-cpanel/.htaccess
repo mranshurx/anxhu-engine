@@ -1,0 +1,37 @@
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/dqsuqbry/pmm-proxy"
+PassengerBaseURI "/"
+PassengerNodejs "/home/dqsuqbry/nodevenv/pmm-proxy/20/bin/node"
+PassengerAppType node
+PassengerStartupFile server.js
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+
+# 1. Prevent 403 Forbidden on directory browsing
+Options -Indexes
+DirectoryIndex index.html
+
+# 2. Grant public access
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order Allow,Deny
+    Allow from all
+</IfModule>
+
+# 3. Prevent output buffering & compression on Real-Time SSE Stream (/api/events)
+<IfModule mod_env.c>
+    SetEnvIf Request_URI "^/api/events" no-gzip 1
+</IfModule>
+
+# ==============================================================================
+# OPTIONAL: Reverse Proxy (Only needed if NOT using "Setup Node.js App"
+# and running node manually on a background port, e.g. 15493 or 3000)
+# ==============================================================================
+# <IfModule mod_rewrite.c>
+#     RewriteEngine On
+#     RewriteRule ^$ http://127.0.0.1:15493/ [P,L]
+#     RewriteCond %{REQUEST_FILENAME} !-f
+#     RewriteCond %{REQUEST_FILENAME} !-d
+#     RewriteRule ^(.*)$ http://127.0.0.1:15493/$1 [P,L]
+# </IfModule>

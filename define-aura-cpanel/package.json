@@ -1,0 +1,20 @@
+{
+  "name": "define-aura-client",
+  "version": "1.7.0",
+  "description": "DEFINE AURA — key login, tunnel status, live match features replica",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "define-aura",
+    "aura",
+    "client"
+  ],
+  "author": "NullDash",
+  "license": "ISC"
+}
