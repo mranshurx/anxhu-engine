@@ -7,7 +7,7 @@ const DB_FILE = path.join(__dirname, 'database.json');
 const DEFAULT_DATA = {
   maintenance: {
     enabled: false,
-    allowed_logins: [],
+    allowed_logins: ['owner', 'admin', 'test', 'CYBER-TEST-1234-5678', 'PMM-TEST-1234-5678'],
     blocked: false,
     title: 'maintenance',
     message: "we're doing maintenance. everything is paused until we're back."
@@ -26,10 +26,69 @@ const DEFAULT_DATA = {
     { id: 'fr1', name: 'France Node 03', flag: '🇫🇷', host: 'fr1.nulldash.store', port: 443, ping: 110, status: 'online', users: 12 }
   ],
   keys: [
-
-
-
-
+    {
+      key: 'CYBER-TEST-1234-5678',
+      status: 'active',
+      bound_hwid: null,
+      device_model: null,
+      device_os: null,
+      created_at: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
+      expires_at: new Date(Date.now() + 28 * 24 * 3600 * 1000).toISOString(),
+      note: 'Pre-activated Testing License',
+      features: {
+        marker: { enabled: true, type: 'Define Aura' },
+        aimLag: { enabled: false, onFire: false, onScope: false },
+        fastLanding: { enabled: false, spot: 'Peak' },
+        fastRevive: { enabled: false },
+        gloo: { enabled: false, yawDeg: 180 },
+        aimpoint: { enabled: false }
+      }
+    },
+    {
+      key: 'PMM-TEST-1234-5678',
+      status: 'active',
+      bound_hwid: null,
+      device_model: null,
+      device_os: null,
+      created_at: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
+      expires_at: new Date(Date.now() + 28 * 24 * 3600 * 1000).toISOString(),
+      note: 'Legacy Testing License',
+      features: {
+        marker: { enabled: true, type: 'Define Aura' },
+        aimLag: { enabled: false, onFire: false, onScope: false },
+        fastLanding: { enabled: false, spot: 'Peak' },
+        fastRevive: { enabled: false },
+        gloo: { enabled: false, yawDeg: 180 },
+        aimpoint: { enabled: false }
+      }
+    },
+    {
+      key: 'PMM-VIP1-8888-9999',
+      status: 'active',
+      bound_hwid: null,
+      device_model: null,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+      note: 'VIP Tier 1 (Unbound)',
+      features: {
+        marker: { enabled: true, type: 'Ice Wall' },
+        aimLag: { enabled: true, onFire: true, onScope: false },
+        fastLanding: { enabled: false, spot: 'Peak' },
+        fastRevive: { enabled: true },
+        gloo: { enabled: true, yawDeg: 90 },
+        aimpoint: { enabled: true }
+      }
+    },
+    {
+      key: 'PMM-EXPR-0000-0000',
+      status: 'expired',
+      bound_hwid: 'HWID-OLD-DEVICE-7711',
+      device_model: 'Samsung S24 Ultra',
+      created_at: new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString(),
+      expires_at: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
+      note: 'Expired Key Sample',
+      features: {}
+    }
   ]
 };
 
@@ -58,7 +117,7 @@ function saveDb(data) {
   }
 }
 
-// Canonical key comparison avoids false "invalid key" errors caused by hyphens, spaces, or casing.
+// Normalize only separators/case so keys work regardless of chunk lengths.
 function normalizeKey(value) {
   return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
