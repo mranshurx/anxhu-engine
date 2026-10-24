@@ -76,10 +76,33 @@ function generateRandomKey(prefix = 'CYBER') {
 }
 
 // Admin panel session auth
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'VENOM@#99';
+const ADMIN_KEY_URL = 'https://raw.githubusercontent.com/mranshurx/anxhu-engine/refs/heads/main/adminkey.txt';
 const ADMIN_SESSION_TTL = 12 * 60 * 60 * 1000; // 12 hours
 const adminSessions = new Map(); // token -> expiresAt
 const adminLoginAttempts = new Map(); // ip -> { fails, reset }
+
+function getOnlineAdminKey() {
+  return new Promise((resolve, reject) => {
+    const request = https.get(ADMIN_KEY_URL, { headers: { 'Cache-Control': 'no-cache' } }, (response) => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        body += chunk;
+        if (body.length > 4096) {
+          response.destroy(new Error('admin key response too large'));
+        }
+      });
+      response.on('end', () => {
+        if (response.statusCode !== 200) return reject(new Error('online admin key unavailable'));
+        const key = body.trim();
+        if (!key) return reject(new Error('online admin key is empty'));
+        resolve(key);
+      });
+    });
+    request.setTimeout(5000, () => request.destroy(new Error('online admin key request timed out')));
+    request.on('error', reject);
+  });
+}
 
 function isAdminAuthed(req) {
   const m = (req.headers['authorization'] || '').match(/^Bearer\s+(.+)$/i);
@@ -554,11 +577,19 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 429, { error: 'too many attempts. try again in 5 minutes.' });
       }
       const givenPassword = String(body.password || '').trim();
-      const isMatch = (givenPassword === ADMIN_PASSWORD) || (givenPassword === 'VENOM@#99');
+      let onlineAdminKey;
+      try {
+        // Admin access is verified against GitHub on every login; no local fallback is allowed.
+        onlineAdminKey = await getOnlineAdminKey();
+      } catch (error) {
+        console.error('[admin-auth] Could not verify GitHub admin key:', error.message);
+        return sendJson(res, 503, { error: 'cannot verify admin key online; try again later' });
+      }
+      const isMatch = Boolean(givenPassword) && givenPassword === onlineAdminKey;
       if (!isMatch) {
         rec.fails += 1;
         adminLoginAttempts.set(ip, rec);
-        return sendJson(res, 401, { error: 'wrong admin password' });
+        return sendJson(res, 401, { error: 'wrong admin key' });
       }
       adminLoginAttempts.delete(ip);
       const token = crypto.randomBytes(32).toString('hex');
@@ -774,17 +805,14 @@ const server = http.createServer(async (req, res) => {
 });
 
 const onListen = () => {
-  const pwdHint = process.env.ADMIN_PASSWORD
-    ? 'password set via ADMIN_PASSWORD env'
-    : `default password: ${ADMIN_PASSWORD} (set ADMIN_PASSWORD env var to change)`;
   console.log(`\n==============================================`);
   console.log(`🚀 DEFINE CYBER Core System running!`);
   if (!isNaN(PORT)) {
     console.log(`👉 Client Portal: http://localhost:${PORT}/`);
-    console.log(`👉 Admin Panel:   http://localhost:${PORT}/vip — ${pwdHint}`);
+    console.log(`👉 Admin Panel:   http://localhost:${PORT}/vip — key verified online via GitHub`);
   } else {
     console.log(`👉 Running via Passenger Socket: ${PORT}`);
-    console.log(`👉 Admin Panel: /vip — ${pwdHint}`);
+    console.log(`👉 Admin Panel: /vip — key verified online via GitHub`);
   }
   console.log(`==============================================\n`);
 };
