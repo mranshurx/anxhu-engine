@@ -3,7 +3,7 @@ const path = require('path');
 
 const DB_FILE = path.join(__dirname, 'database.json');
 
-// Default initial state — NO test keys, keys are only ever generated from the admin panel
+// Default initial state
 const DEFAULT_DATA = {
   maintenance: {
     enabled: false,
@@ -13,7 +13,7 @@ const DEFAULT_DATA = {
     message: "we're doing maintenance. everything is paused until we're back."
   },
   global_features: {
-    marker: { enabled: true, type: 'Cyber x silent' },
+    marker: { enabled: true, type: 'Define Aura' },
     aimLag: { enabled: false, onFire: false, onScope: false },
     fastLanding: { enabled: false, spot: 'Peak' },
     fastRevive: { enabled: false },
@@ -25,22 +25,29 @@ const DEFAULT_DATA = {
     { id: 'del1', name: 'Delhi Node 02', flag: '🇮🇳', host: 'del1.nulldash.store', port: 443, ping: 38, status: 'online', users: 29 },
     { id: 'fr1', name: 'France Node 03', flag: '🇫🇷', host: 'fr1.nulldash.store', port: 443, ping: 110, status: 'online', users: 12 }
   ],
-  keys: []
+  keys: [
+
+
+
+
+  ]
 };
 
+// Load database from file
 function loadDb() {
   try {
     if (!fs.existsSync(DB_FILE)) {
       saveDb(DEFAULT_DATA);
-      return JSON.parse(JSON.stringify(DEFAULT_DATA));
+      return DEFAULT_DATA;
     }
     const raw = fs.readFileSync(DB_FILE, 'utf8');
     return JSON.parse(raw);
   } catch (e) {
-    return JSON.parse(JSON.stringify(DEFAULT_DATA));
+    return DEFAULT_DATA;
   }
 }
 
+// Save database to file
 function saveDb(data) {
   try {
     const dir = path.dirname(DB_FILE);
@@ -51,6 +58,12 @@ function saveDb(data) {
   }
 }
 
+// Canonical key comparison avoids false "invalid key" errors caused by hyphens, spaces, or casing.
+function normalizeKey(value) {
+  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+// DB Helpers
 const db = {
   get() {
     return loadDb();
@@ -65,8 +78,9 @@ const db = {
 
   findKey(keyStr) {
     const data = loadDb();
-    const clean = (keyStr || '').trim().toUpperCase();
-    return data.keys.find(k => k.key.toUpperCase() === clean);
+    const clean = normalizeKey(keyStr);
+    if (!clean) return undefined;
+    return data.keys.find(k => normalizeKey(k.key) === clean);
   },
 
   addKey(keyObj) {
@@ -77,7 +91,8 @@ const db = {
 
   updateKey(keyStr, updates) {
     return this.update(data => {
-      const idx = data.keys.findIndex(k => k.key.toUpperCase() === keyStr.toUpperCase());
+      const target = normalizeKey(keyStr);
+      const idx = data.keys.findIndex(k => normalizeKey(k.key) === target);
       if (idx !== -1) {
         data.keys[idx] = { ...data.keys[idx], ...updates };
       }
@@ -86,7 +101,8 @@ const db = {
 
   deleteKey(keyStr) {
     return this.update(data => {
-      data.keys = data.keys.filter(k => k.key.toUpperCase() !== keyStr.toUpperCase());
+      const target = normalizeKey(keyStr);
+      data.keys = data.keys.filter(k => normalizeKey(k.key) !== target);
     });
   },
 
