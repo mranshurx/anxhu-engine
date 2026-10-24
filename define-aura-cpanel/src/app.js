@@ -176,7 +176,7 @@ async function getRealClientDevice() {
 // Smart access key formatter supporting CYBER, DEFINE, PMM, etc.
 function formatKey(val) {
   const upper = String(val || '').trim().toUpperCase();
-  if (['OWNER', 'ADMIN', 'TEST'].includes(upper)) return upper;
+  // No special/test login shortcuts: only generated license-key formats are accepted.
   const raw = upper.replace(/[^A-Z0-9]/g, '');
   if (!raw) return '';
   let pfxLen = 4;
@@ -195,19 +195,19 @@ function formatKey(val) {
   return chunks.join('-');
 }
 
-// Countdown formatter: always reflects the current license-key expiry.
+// Countdown formatter
 function formatCountdown(targetIso) {
   if (!targetIso) return '—';
-  const expiry = new Date(targetIso).getTime();
-  if (!Number.isFinite(expiry)) return '—';
-  const diff = expiry - Date.now();
+  const diff = new Date(targetIso).getTime() - Date.now();
   if (diff <= 0) return '<span class="font-semibold text-accent-bad">expired</span>';
   const sec = Math.floor(diff / 1000);
   const days = Math.floor(sec / 86400);
   const hours = Math.floor((sec % 86400) / 3600);
   const mins = Math.floor((sec % 3600) / 60);
   const secs = sec % 60;
-  return `${days}d ${hours}h ${mins}m ${secs}s`;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m ${secs}s`;
 }
 
 // Fetch live maintenance status from server
@@ -908,15 +908,49 @@ function attachEvents() {
     });
   }
 
-  // Happ Button: open Happ directly with the supplied import link.
+  // Happ Button
   const happBtn = document.getElementById('happ-btn');
   if (happBtn) {
-    happBtn.addEventListener('click', () => {
-      const happImportLink = 'happ://crypt5/fzvdEzCML5RmaxpY8pRq8ctz10yy2s8ccmw6khFcyzU0BxVpvQhTdN25G6JoWy4JYfPTQJwjtK875no+KifzHXjQTHrMxsE0b5dOKfCI/vx7cAvo5YJL7kp8T9gNL2upQqn5G5qHj6c=TpHyT0kBLW+uP4Uvp29gvLOPUDPzqO/APpb9bJ0foY8kvt2bw+E8PNbsrWduTV03NBuG1h1UCWHtX7l86+5sKbvgxDyrvqY2vQWU8NE/kgnm98zmRkRv+2nd7zlWRuXqBgbbKthxBvw3s7N2VYv6ShzifboC9bR9IlI0wRKugH6OC9j6//2KDuf6zyJvm/FkHPQjkFMnZRjf3W8NkBA6ERVaHd/81dgIlxFp9YXV1nIdSDfXthMYpbKXi0uui3UXFsOiTeryZMnCFNMFL7iVJ5Rc//ksXoEcrpuMXuHj4JmEjpnLmEOXlITFKliu9MAmEQK1TxLqfPMtpvivHkcmv6o0zrEbMQu910qNLrs8lFkEAoQsrzdQutw+lB9rvKtYIcEXX5pnIBAw6gWewP8f1+rTH8BMYivKxsqk/FMbElrtzQh2xgaANYZFRuksH7X1wk+HYAjBub8d2iiLhDlnomBh4FgGPAKW4M6BqhmwkgMWtbf73IB3/faEMXAhfYFNN5dIzii8a7oFWcT7P+00936mbkxfM7p7J1naoxav6K4jEdZwmi11CcNaT9cDLt8nWAlza4WE+y7unIsd84u6yi/ljrQq0A3it3iM4HJOcBomXX6yTJ7SO+vAK6LmD8/TUazGvaYMsOxhC3WqWQK4Ajaud+9gTgMEZWAwBCRdfoY=ff';
+    happBtn.addEventListener('click', async () => {
+      state.happLoading = true;
       state.happError = null;
+      render();
 
-      // A custom protocol asks the operating system to open Happ and import this link.
-      window.location.href = happImportLink;
+      const subUrl = `${window.location.origin}/api/happ/sub?key=${encodeURIComponent(state.auth.key)}`;
+      try { await copyText(subUrl); } catch (e) {}
+
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+      const ctrl = new AbortController();
+      const abortTimer = setTimeout(() => ctrl.abort(), 8000);
+
+      try {
+        const res = await fetch('/api/happ', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: state.auth.key, origin: window.location.origin }),
+          signal: ctrl.signal
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.deepLink) {
+          window.location.href = data.deepLink;
+          if (!isMobile && data.href) {
+            const fallbackTimer = setTimeout(() => {
+              if (!document.hidden) window.location.href = data.href;
+            }, 2000);
+            document.addEventListener('visibilitychange', () => {
+              if (document.hidden) clearTimeout(fallbackTimer);
+            }, { once: true });
+          }
+        } else {
+          state.happError = 'subscription link copied — open Happ and tap Clipboard';
+        }
+      } catch (e) {
+        state.happError = 'subscription link copied — open Happ and tap Clipboard';
+      } finally {
+        clearTimeout(abortTimer);
+        state.happLoading = false;
+        render();
+      }
     });
   }
 
