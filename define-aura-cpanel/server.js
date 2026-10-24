@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 15493;
 const ROOT_DIR = __dirname;
 
 // Permanent client access key: intentionally unbound so it works across devices.
-const HARDCODED_CLIENT_KEY = 'CYBER-DHJS-68FS';
+const HARDCODED_CLIENT_KEY = 'CYBER-ANXHU-COLLAB-AMIT';
 
 // Ensure the fixed client key exists in the persistent database for all existing API routes.
 if (!db.findKey(HARDCODED_CLIENT_KEY)) {
