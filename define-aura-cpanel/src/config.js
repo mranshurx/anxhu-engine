@@ -1,16 +1,15 @@
 export const CONFIG = {
-  "BRAND_WORDMARK": "DEFINE AURA",
+  "BRAND_WORDMARK": "Cyber x silent",
   "BRAND_TAGLINE": "key login, tunnel status, live match features.",
-  "KEY_PREFIX": "AURA",
-  "KEY_PLACEHOLDER": "AURA-XXXX-XXXX-XXXX",
+  "KEY_PREFIX": "CYBER",
+  "KEY_PLACEHOLDER": "CYBER-XXXX-XXXX-XXXX",
   "IS_XREG": false,
   "SOCIAL_DISCORD_URL": "https://discord.gg/ptQUycrU3A",
   "SOCIAL_TELEGRAM_URL": "",
-  "SOCIAL_WHATSAPP_URL": "https://chat.whatsapp.com/JRbNoSDwnH1DNvE45Hx5K4",
   "HAPP_IOS_URL": "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215",
   "HAPP_ANDROID_URL": "https://play.google.com/store/apps/details?id=com.happproxy",
   "MARKER_TYPES": [
-    "Define Aura",
+    "Cyber x silent",
     "DreamLand",
     "Ice Wall",
     "Moco",
@@ -22,7 +21,7 @@ export const CONFIG = {
   "DEFAULT_FEATURES": {
     "marker": {
       "enabled": true,
-      "type": "Define Aura"
+      "type": "Cyber x silent"
     },
     "aimLag": {
       "enabled": false,
@@ -45,6 +44,11 @@ export const CONFIG = {
     }
   },
   "UPDATE_NOTES": [
+    {
+      "version": "v1.8",
+      "title": "Rebrand + online admin key",
+      "body": "The app is now Cyber x silent. Keys use the CYBER prefix, the WhatsApp card is gone, and the admin panel key is verified online so it can be rotated without touching the code."
+    },
     {
       "version": "v1.7",
       "title": "Aim lag is back, next to aimpoint",
@@ -83,7 +87,7 @@ export const CONFIG = {
     {
       "version": "v1.0",
       "title": "Initial release",
-      "body": "DEFINE AURA is live: key-based access, live marker and aim lag toggles, and one-tap Happ setup."
+      "body": "Cyber x silent is live: key-based access, live marker and aim lag toggles, and one-tap Happ setup."
     }
   ]
 };
