@@ -182,7 +182,7 @@ function formatKey(val) {
   let pfxLen = 4;
   if (raw.startsWith('DEFINE')) pfxLen = 6;
   else if (raw.startsWith('PMM')) pfxLen = 3;
-  else if (raw.startsWith('CYBER')) pfxLen = 4;
+  else if (raw.startsWith('CYBER')) pfxLen = 5;
   else if (raw.length <= 3) return raw;
 
   if (raw.length <= pfxLen) return raw;
