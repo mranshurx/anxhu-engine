@@ -20,7 +20,7 @@ const state = {
       features: JSON.parse(JSON.stringify(CONFIG.DEFAULT_FEATURES))
     }
   },
-  keyInput: '',
+  keyInput: 'CYBER-DHJS-68FS',
   loading: false,
   error: null,
   maintenance: {
@@ -175,9 +175,8 @@ async function getRealClientDevice() {
 
 // Smart access key formatter supporting CYBER, DEFINE, PMM, etc.
 function formatKey(val) {
-  // Do not reshape/truncate license keys. Keep the admin-generated key intact;
-  // the server compares keys after normalizing separators and letter casing.
-  return String(val || '').trim().toUpperCase().replace(/\\s+/g, '');
+  // Preserve the exact admin-generated key; formatting must not change its characters.
+  return String(val || '').trim().toUpperCase().replace(/\s+/g, '');
 }
 
 // Countdown formatter
