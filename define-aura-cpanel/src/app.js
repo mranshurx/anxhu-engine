@@ -2,12 +2,11 @@ import { CONFIG } from './config.js';
 import { TRANSLATIONS } from './translations.js';
 import { Icons } from './icons.js';
 
-// State Store
 const state = {
-  lang: localStorage.getItem('aura_lang') || localStorage.getItem('pmm_lang') || 'en',
+  lang: localStorage.getItem('cyber_lang') || localStorage.getItem('aura_lang') || 'en',
   isLangOpen: false,
-  tab: 'status', // 'status' | 'features' | 'manage'
-  manageSubView: 'list', // 'list' | 'notes' | 'guide'
+  tab: 'status',
+  manageSubView: 'list',
   auth: {
     loggedIn: false,
     key: '',
@@ -34,8 +33,7 @@ const state = {
   timerInterval: null
 };
 
-// Check local storage session
-const savedSession = localStorage.getItem('aura_session') || localStorage.getItem('pmm_session');
+const savedSession = localStorage.getItem('cyber_session') || localStorage.getItem('aura_session');
 if (savedSession) {
   try {
     const parsed = JSON.parse(savedSession);
@@ -48,7 +46,6 @@ if (savedSession) {
   } catch (e) {}
 }
 
-// Translation helper
 function t(key) {
   const dict = TRANSLATIONS[state.lang] || TRANSLATIONS.en;
   return dict[key] || TRANSLATIONS.en[key] || key;
@@ -60,7 +57,6 @@ function escHtml(s) {
   ));
 }
 
-// Strip GPU/driver junk from stored device names (old DB records)
 function cleanDeviceName(model) {
   let s = String(model == null ? '' : model).trim();
   if (!s) return '';
@@ -70,31 +66,20 @@ function cleanDeviceName(model) {
   return s;
 }
 
-// Real Hardware Fingerprinting & Actual Device Identification
 async function getRealClientDevice() {
   const ua = navigator.userAgent || '';
   let os = 'Unknown OS';
   let deviceName = 'Unknown Device';
 
-  // 1. Detect Real OS
   if (/Windows NT 10.0/i.test(ua)) os = 'Windows 10/11';
   else if (/Windows NT 6.3/i.test(ua)) os = 'Windows 8.1';
   else if (/Windows NT 6.1/i.test(ua)) os = 'Windows 7';
-  else if (/iPhone/i.test(ua)) {
-    const m = ua.match(/OS (\d+[_\.]\d+)/);
-    os = m ? `iOS ${m[1].replace('_', '.')}` : 'iOS';
-  } else if (/iPad/i.test(ua)) {
-    const m = ua.match(/OS (\d+[_\.]\d+)/);
-    os = m ? `iPadOS ${m[1].replace('_', '.')}` : 'iPadOS';
-  } else if (/Macintosh|Mac OS X/i.test(ua)) {
-    const m = ua.match(/Mac OS X (\d+[_\.]\d+)/);
-    os = m ? `macOS ${m[1].replace('_', '.')}` : 'macOS';
-  } else if (/Android/i.test(ua)) {
-    const m = ua.match(/Android (\d+(\.\d+)?)/);
-    os = m ? `Android ${m[1]}` : 'Android';
-  } else if (/Linux/i.test(ua)) os = 'Linux';
+  else if (/iPhone/i.test(ua)) { const m = ua.match(/OS (\d+[_\.]\d+)/); os = m ? `iOS ${m[1].replace('_', '.')}` : 'iOS'; }
+  else if (/iPad/i.test(ua)) { const m = ua.match(/OS (\d+[_\.]\d+)/); os = m ? `iPadOS ${m[1].replace('_', '.')}` : 'iPadOS'; }
+  else if (/Macintosh|Mac OS X/i.test(ua)) { const m = ua.match(/Mac OS X (\d+[_\.]\d+)/); os = m ? `macOS ${m[1].replace('_', '.')}` : 'macOS'; }
+  else if (/Android/i.test(ua)) { const m = ua.match(/Android (\d+(\.\d+)?)/); os = m ? `Android ${m[1]}` : 'Android'; }
+  else if (/Linux/i.test(ua)) os = 'Linux';
 
-  // 2. Detect Real Hardware GPU via WebGL
   let gpuRenderer = '';
   try {
     const canvas = document.createElement('canvas');
@@ -109,7 +94,6 @@ async function getRealClientDevice() {
     }
   } catch (e) {}
 
-  // 3. Format Real Device Model Name (clean display; GPU stays in HWID metrics only)
   if (/iPhone/i.test(ua)) {
     const w = screen.width * (window.devicePixelRatio || 1);
     const h = screen.height * (window.devicePixelRatio || 1);
@@ -118,21 +102,13 @@ async function getRealClientDevice() {
     else if ((w === 1284 && h === 2778) || (w === 2778 && h === 1284)) deviceName = 'iPhone 13/14 Pro Max';
     else if ((w === 1170 && h === 2532) || (w === 2532 && h === 1170)) deviceName = 'iPhone 12/13/14';
     else deviceName = 'iPhone';
-  } else if (/iPad/i.test(ua)) {
-    deviceName = 'iPad';
-  } else if (/Android/i.test(ua)) {
-    const modelMatch = ua.match(/;\s*([A-Za-z0-9\-\s\_]+)\s+Build\//);
-    deviceName = modelMatch ? modelMatch[1].trim() : 'Android Device';
-  } else if (/Macintosh/i.test(ua)) {
-    deviceName = 'Mac';
-  } else if (/Windows/i.test(ua)) {
-    deviceName = 'Windows PC';
-  } else {
-    deviceName = `${os} Desktop`;
-  }
+  } else if (/iPad/i.test(ua)) deviceName = 'iPad';
+  else if (/Android/i.test(ua)) { const m = ua.match(/;\s*([A-Za-z0-9\-\s\_]+)\s+Build\//); deviceName = m ? m[1].trim() : 'Android Device'; }
+  else if (/Macintosh/i.test(ua)) deviceName = 'Mac';
+  else if (/Windows/i.test(ua)) deviceName = 'Windows PC';
+  else deviceName = `${os} Desktop`;
 
-  // 4. Generate Stable Hardware ID (HWID)
-  let hwid = localStorage.getItem('aura_hwid') || localStorage.getItem('pmm_hwid');
+  let hwid = localStorage.getItem('cyber_hwid') || localStorage.getItem('aura_hwid');
   if (!hwid) {
     const metrics = [
       navigator.platform || '',
@@ -142,60 +118,50 @@ async function getRealClientDevice() {
       new Date().getTimezoneOffset(),
       gpuRenderer
     ];
-
     try {
       const c = document.createElement('canvas');
-      c.width = 160;
-      c.height = 40;
+      c.width = 160; c.height = 40;
       const ctx = c.getContext('2d');
       ctx.textBaseline = 'top';
       ctx.font = "14px 'Arial'";
       ctx.fillStyle = '#ff2a44';
       ctx.fillRect(100, 1, 50, 18);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('AURA-HWID', 2, 12);
+      ctx.fillText('CYBER-HWID', 2, 12);
       metrics.push(c.toDataURL());
     } catch (e) {}
-
     const seed = metrics.join('###');
     let h = 0;
-    for (let i = 0; i < seed.length; i++) {
-      h = ((h << 5) - h) + seed.charCodeAt(i);
-      h |= 0;
-    }
+    for (let i = 0; i < seed.length; i++) { h = ((h << 5) - h) + seed.charCodeAt(i); h |= 0; }
     const chunk1 = Math.abs(h).toString(16).padStart(8, '0').slice(0, 4).toUpperCase();
     const chunk2 = Math.abs(h ^ 0x5a5a5a5a).toString(16).padStart(8, '0').slice(0, 4).toUpperCase();
     const chunk3 = Math.abs(h ^ 0xa5a5a5a5).toString(16).padStart(8, '0').slice(0, 4).toUpperCase();
-    hwid = `AURA-${chunk1}-${chunk2}-${chunk3}`;
-    localStorage.setItem('aura_hwid', hwid);
+    hwid = `CYBER-${chunk1}-${chunk2}-${chunk3}`;
+    localStorage.setItem('cyber_hwid', hwid);
   }
 
   return { hwid, device_model: deviceName, device_os: os };
 }
 
-// Smart access key formatter supporting AURA, DEFINE, PMM, etc.
+// CYBER-XXXX-XXXX-XXXX — no OWNER / ADMIN / TEST special keys anymore
 function formatKey(val) {
   const upper = String(val || '').trim().toUpperCase();
-  if (['OWNER', 'ADMIN', 'TEST'].includes(upper)) return upper;
   const raw = upper.replace(/[^A-Z0-9]/g, '');
   if (!raw) return '';
-  let pfxLen = 4;
-  if (raw.startsWith('DEFINE')) pfxLen = 6;
+
+  let pfxLen = 5;
+  if (raw.startsWith('CYBER')) pfxLen = 5;
   else if (raw.startsWith('PMM')) pfxLen = 3;
-  else if (raw.startsWith('AURA')) pfxLen = 4;
-  else if (raw.length <= 3) return raw;
+  else if (raw.length <= 4) return raw;
 
   if (raw.length <= pfxLen) return raw;
   const prefix = raw.slice(0, pfxLen);
   const rest = raw.slice(pfxLen, pfxLen + 12);
   const chunks = [prefix];
-  for (let i = 0; i < rest.length; i += 4) {
-    chunks.push(rest.slice(i, i + 4));
-  }
+  for (let i = 0; i < rest.length; i += 4) chunks.push(rest.slice(i, i + 4));
   return chunks.join('-');
 }
 
-// Countdown formatter
 function formatCountdown(targetIso) {
   if (!targetIso) return '—';
   const diff = new Date(targetIso).getTime() - Date.now();
@@ -210,40 +176,28 @@ function formatCountdown(targetIso) {
   return `${mins}m ${secs}s`;
 }
 
-// Fetch live maintenance status from server
 async function checkMaintenance() {
   try {
     const res = await fetch('/api/maintenance');
-    if (res.ok) {
-      const data = await res.json();
-      state.maintenance = data;
-      render();
-    }
+    if (res.ok) { state.maintenance = await res.json(); render(); }
   } catch (e) {}
 }
 
-// Listen to real-time events via SSE
 function initSSE() {
   try {
     const es = new EventSource('/api/events');
     es.addEventListener('maintenance', (e) => {
-      try {
-        state.maintenance = JSON.parse(e.data);
-        render();
-      } catch (err) {}
+      try { state.maintenance = JSON.parse(e.data); render(); } catch (err) {}
     });
     es.addEventListener('logout', (e) => {
       try {
         const d = JSON.parse(e.data);
-        if (!d.key || d.key === state.auth.key) {
-          logout();
-        }
+        if (!d.key || d.key === state.auth.key) logout();
       } catch (err) {}
     });
   } catch (e) {}
 }
 
-// Main Render Function
 function render() {
   const root = document.getElementById('app');
   if (!root) return;
@@ -251,11 +205,10 @@ function render() {
   const isRtl = state.lang === 'ar';
   document.documentElement.setAttribute('lang', state.lang);
   document.documentElement.setAttribute('dir', isRtl ? 'rtl' : 'ltr');
-  document.title = 'DEFINE AURA';
+  document.title = CONFIG.BRAND_WORDMARK;
 
   let html = '';
 
-  // Background ambient drift glow (Red Aura Theme)
   html += `
     <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-background">
       <div class="animate-drift-a absolute left-1/2 top-[-14%] h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-[#ff2a44]/[0.09] blur-[130px]"></div>
@@ -263,7 +216,6 @@ function render() {
     </div>
   `;
 
-  // Top Maintenance Banner (Only displays when maintenance is active on the backend)
   if (state.maintenance && state.maintenance.enabled) {
     html += `
       <div class="fixed inset-x-0 top-0 z-50 flex items-start justify-center gap-2 bg-[#fbbf24]/15 px-4 py-2.5 text-center text-[11px] text-[#fbbf24] backdrop-blur">
@@ -277,18 +229,12 @@ function render() {
     `;
   }
 
-  // Render KeyGate or Dashboard
-  if (!state.auth.loggedIn) {
-    html += renderKeyGate();
-  } else {
-    html += renderDashboard();
-  }
+  html += state.auth.loggedIn ? renderDashboard() : renderKeyGate();
 
   root.innerHTML = html;
   attachEvents();
 }
 
-// Pure & Authentic KeyGate View (1:1 with client.nulldash.store)
 function renderKeyGate() {
   return `
     <main class="relative flex min-h-dvh flex-col items-center justify-center px-6">
@@ -323,14 +269,12 @@ function renderKeyGate() {
   `;
 }
 
-// Pure & Authentic Dashboard View
 function renderDashboard() {
   const me = state.auth.me;
 
   return `
     <main class="relative mx-auto flex min-h-dvh max-w-md flex-col px-5 pb-32 pt-6">
       
-      <!-- Header with Status and Language Dropdown -->
       <div class="flex items-center justify-between gap-3 px-1 py-4">
         <div class="flex min-w-0 items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-foreground">
           ${state.tab === 'manage'
@@ -349,7 +293,6 @@ function renderDashboard() {
         </div>
       </div>
 
-      <!-- Tab Content Area -->
       <div class="flex flex-1 flex-col animate-rise">
         ${state.tab === 'status' ? renderStatusTab(me) : ''}
         ${state.tab === 'features' ? renderFeaturesTab(me) : ''}
@@ -358,12 +301,10 @@ function renderDashboard() {
 
     </main>
 
-    <!-- Floating Bottom Glass Navigation -->
     ${renderBottomNav()}
   `;
 }
 
-// Language Dropdown
 function renderLangDropdown() {
   const languages = [
     { code: 'ar', name: 'العربية' },
@@ -390,7 +331,6 @@ function renderLangDropdown() {
   `;
 }
 
-// Status Tab View
 function renderStatusTab(me) {
   const expiresCountdown = formatCountdown(me.expires_at);
 
@@ -424,10 +364,9 @@ function renderStatusTab(me) {
   `;
 }
 
-// Features Tab View
 function renderFeaturesTab(me) {
   const f = me.features;
-  const marker = f.marker || { enabled: true, type: 'Define Aura' };
+  const marker = f.marker || { enabled: true, type: CONFIG.MARKER_TYPES[0] };
   const aimpoint = f.aimpoint || { enabled: false };
   const aimLag = f.aimLag || { enabled: false, onFire: false, onScope: false };
   const gloo = f.gloo || { enabled: false, yawDeg: 180 };
@@ -440,7 +379,6 @@ function renderFeaturesTab(me) {
   return `
     <div class="flex flex-col gap-4">
 
-      <!-- Marker Card -->
       <div class="card p-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-dim">
@@ -467,7 +405,6 @@ function renderFeaturesTab(me) {
         </div>
       </div>
 
-      <!-- Aimpoint Card -->
       <div class="card p-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-dim">
@@ -480,7 +417,6 @@ function renderFeaturesTab(me) {
         <p class="feat-desc">${t('d_aimpoint')}</p>
       </div>
 
-      <!-- Aim Lag Card -->
       <div class="card p-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-dim">
@@ -508,7 +444,6 @@ function renderFeaturesTab(me) {
         </div>
       </div>
 
-      <!-- Gloo Rotation Card -->
       <div class="card p-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-dim">
@@ -541,7 +476,6 @@ function renderFeaturesTab(me) {
         </div>
       </div>
 
-      <!-- Fast Revive Card -->
       <div class="card p-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-dim">
@@ -558,21 +492,16 @@ function renderFeaturesTab(me) {
   `;
 }
 
-// Manage Tab View
+// WhatsApp card removed
 function renderManageTab() {
-  if (state.manageSubView === 'notes') {
-    return renderUpdateNotes();
-  }
-  if (state.manageSubView === 'guide') {
-    return renderSetupGuide();
-  }
+  if (state.manageSubView === 'notes') return renderUpdateNotes();
+  if (state.manageSubView === 'guide') return renderSetupGuide();
 
   const latestNote = CONFIG.UPDATE_NOTES[0];
 
   return `
     <div class="flex flex-1 flex-col gap-3">
 
-      <!-- Update notes preview -->
       <button id="view-notes-btn" class="w-full text-left">
         <div class="card relative p-4 pr-10 transition-colors hover:border-foreground/30">
           <div class="text-sm font-bold text-foreground">${t('update_notes')}</div>
@@ -585,7 +514,6 @@ function renderManageTab() {
         </div>
       </button>
 
-      <!-- Setup guide card -->
       <button id="view-guide-btn" class="w-full text-left">
         <div class="card flex items-center justify-between p-4 transition-colors hover:border-foreground/30">
           <div class="flex items-center gap-3">
@@ -598,20 +526,6 @@ function renderManageTab() {
         </div>
       </button>
 
-      <!-- WhatsApp community -->
-      <a href="${CONFIG.SOCIAL_WHATSAPP_URL}" target="_blank" rel="noopener noreferrer" class="w-full text-left">
-        <div class="card flex items-center justify-between p-4 transition-colors hover:border-foreground/30">
-          <div class="flex items-center gap-3">
-            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-dim">
-              ${Icons.whatsapp(16)}
-            </div>
-            <span class="text-sm text-foreground">${t('whatsapp')}</span>
-          </div>
-          ${Icons.chevronRight(16, 'shrink-0 text-line-2')}
-        </div>
-      </a>
-
-      <!-- Log out -->
       <div class="mt-auto pt-6">
         <button id="logout-btn" class="w-full text-left">
           <div class="card flex items-center justify-between p-4 transition-colors border-accent-bad/25 hover:border-accent-bad/50">
@@ -629,7 +543,6 @@ function renderManageTab() {
   `;
 }
 
-// Update Notes View
 function renderUpdateNotes() {
   return `
     <div class="flex flex-col gap-4">
@@ -655,7 +568,6 @@ function renderUpdateNotes() {
   `;
 }
 
-// Setup Guide View
 function renderSetupGuide() {
   return `
     <div class="flex flex-col gap-4">
@@ -708,7 +620,6 @@ function renderSetupGuide() {
   `;
 }
 
-// Floating Bottom Navigation Bar
 function renderBottomNav() {
   const tabs = [
     { id: 'status', label: t('nav_home'), icon: Icons.skull(18) },
@@ -736,13 +647,9 @@ function renderBottomNav() {
   `;
 }
 
-// Clipboard copy with legacy fallback (http origins have no navigator.clipboard)
 async function copyText(text) {
   try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return;
-    }
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return; }
   } catch (e) {}
   const ta = document.createElement('textarea');
   ta.value = text;
@@ -754,7 +661,6 @@ async function copyText(text) {
   document.body.removeChild(ta);
 }
 
-// Attach Event Listeners
 function attachEvents() {
   const keyInput = document.getElementById('key-input');
   if (keyInput) {
@@ -771,12 +677,7 @@ function attachEvents() {
     keyForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const val = state.keyInput.trim();
-
-      if (!val) {
-        state.error = 'enter your full key';
-        render();
-        return;
-      }
+      if (!val) { state.error = 'enter your full key'; render(); return; }
 
       state.loading = true;
       state.error = null;
@@ -787,26 +688,15 @@ function attachEvents() {
         const res = await fetch('/api/redeem', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            key: val,
-            hwid: devInfo.hwid,
-            device_model: devInfo.device_model,
-            device_os: devInfo.device_os
-          })
+          body: JSON.stringify({ key: val, hwid: devInfo.hwid, device_model: devInfo.device_model, device_os: devInfo.device_os })
         });
         const data = await res.json().catch(() => ({}));
-        
+
         if (res.ok) {
           state.auth.loggedIn = true;
           state.auth.key = val;
-          if (data.me) {
-            state.auth.me = { ...state.auth.me, ...data.me };
-          }
-          localStorage.setItem('aura_session', JSON.stringify({
-            key: val,
-            me: state.auth.me,
-            features: state.auth.me.features
-          }));
+          if (data.me) state.auth.me = { ...state.auth.me, ...data.me };
+          localStorage.setItem('cyber_session', JSON.stringify({ key: val, me: state.auth.me, features: state.auth.me.features }));
         } else {
           state.error = data.error || 'invalid key';
         }
@@ -820,28 +710,15 @@ function attachEvents() {
   }
 
   const langBtn = document.getElementById('lang-btn');
-  if (langBtn) {
-    langBtn.addEventListener('click', () => {
-      state.isLangOpen = !state.isLangOpen;
-      render();
-    });
-  }
+  if (langBtn) langBtn.addEventListener('click', () => { state.isLangOpen = !state.isLangOpen; render(); });
 
   const langOverlay = document.getElementById('lang-overlay');
-  if (langOverlay) {
-    langOverlay.addEventListener('click', () => {
-      state.isLangOpen = false;
-      render();
-    });
-  }
+  if (langOverlay) langOverlay.addEventListener('click', () => { state.isLangOpen = false; render(); });
 
   document.querySelectorAll('.lang-select-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const code = btn.getAttribute('data-lang');
-      if (code) {
-        state.lang = code;
-        localStorage.setItem('aura_lang', code);
-      }
+      if (code) { state.lang = code; localStorage.setItem('cyber_lang', code); }
       state.isLangOpen = false;
       render();
     });
@@ -859,12 +736,10 @@ function attachEvents() {
     });
   });
 
-  // Feature Toggles
   document.querySelectorAll('[data-toggle]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const field = btn.getAttribute('data-toggle');
       const f = state.auth.me.features;
-
       if (field === 'marker') f.marker.enabled = !f.marker.enabled;
       else if (field === 'aimpoint') f.aimpoint.enabled = !f.aimpoint.enabled;
       else if (field === 'aimLag') f.aimLag.enabled = !f.aimLag.enabled;
@@ -872,13 +747,11 @@ function attachEvents() {
       else if (field === 'aimLag.onScope') f.aimLag.onScope = !f.aimLag.onScope;
       else if (field === 'gloo') f.gloo.enabled = !f.gloo.enabled;
       else if (field === 'fastRevive') f.fastRevive.enabled = !f.fastRevive.enabled;
-
       render();
       saveFeatures(f);
     });
   });
 
-  // Marker Type Pills
   document.querySelectorAll('[data-marker-type]').forEach(btn => {
     btn.addEventListener('click', () => {
       const type = btn.getAttribute('data-marker-type');
@@ -890,7 +763,6 @@ function attachEvents() {
     });
   });
 
-  // Gloo Slider
   const glooSlider = document.getElementById('gloo-slider');
   if (glooSlider) {
     glooSlider.addEventListener('input', (e) => {
@@ -898,17 +770,12 @@ function attachEvents() {
       state.auth.me.features.gloo.yawDeg = deg;
       const degDisplay = document.getElementById('gloo-deg-val');
       if (degDisplay) degDisplay.innerText = deg > 0 ? `+${deg}°` : `${deg}°`;
-      
       const glooPct = ((deg - -180) / 360) * 100;
       glooSlider.style.background = `linear-gradient(90deg, var(--color-accent) ${glooPct}%, var(--color-line-2) ${glooPct}%)`;
     });
-
-    glooSlider.addEventListener('change', () => {
-      saveFeatures(state.auth.me.features);
-    });
+    glooSlider.addEventListener('change', () => { saveFeatures(state.auth.me.features); });
   }
 
-  // Happ Button
   const happBtn = document.getElementById('happ-btn');
   if (happBtn) {
     happBtn.addEventListener('click', async () => {
@@ -934,12 +801,8 @@ function attachEvents() {
         if (res.ok && data.deepLink) {
           window.location.href = data.deepLink;
           if (!isMobile && data.href) {
-            const fallbackTimer = setTimeout(() => {
-              if (!document.hidden) window.location.href = data.href;
-            }, 2000);
-            document.addEventListener('visibilitychange', () => {
-              if (document.hidden) clearTimeout(fallbackTimer);
-            }, { once: true });
+            const fallbackTimer = setTimeout(() => { if (!document.hidden) window.location.href = data.href; }, 2000);
+            document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(fallbackTimer); }, { once: true });
           }
         } else {
           state.happError = 'subscription link copied — open Happ and tap Clipboard';
@@ -954,49 +817,21 @@ function attachEvents() {
     });
   }
 
-  // Manage navigation
   const viewNotesBtn = document.getElementById('view-notes-btn');
-  if (viewNotesBtn) {
-    viewNotesBtn.addEventListener('click', () => {
-      state.manageSubView = 'notes';
-      render();
-      window.scrollTo(0, 0);
-    });
-  }
+  if (viewNotesBtn) viewNotesBtn.addEventListener('click', () => { state.manageSubView = 'notes'; render(); window.scrollTo(0, 0); });
 
   const viewGuideBtn = document.getElementById('view-guide-btn');
-  if (viewGuideBtn) {
-    viewGuideBtn.addEventListener('click', () => {
-      state.manageSubView = 'guide';
-      render();
-      window.scrollTo(0, 0);
-    });
-  }
+  if (viewGuideBtn) viewGuideBtn.addEventListener('click', () => { state.manageSubView = 'guide'; render(); window.scrollTo(0, 0); });
 
   const backToManageBtn = document.getElementById('back-to-manage-btn');
-  if (backToManageBtn) {
-    backToManageBtn.addEventListener('click', () => {
-      state.manageSubView = 'list';
-      render();
-      window.scrollTo(0, 0);
-    });
-  }
+  if (backToManageBtn) backToManageBtn.addEventListener('click', () => { state.manageSubView = 'list'; render(); window.scrollTo(0, 0); });
 
-  // Logout
   const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', logout);
-  }
+  if (logoutBtn) logoutBtn.addEventListener('click', logout);
 }
 
-// Save features to server and localStorage
 async function saveFeatures(f) {
-  localStorage.setItem('aura_session', JSON.stringify({
-    key: state.auth.key,
-    me: state.auth.me,
-    features: f
-  }));
-
+  localStorage.setItem('cyber_session', JSON.stringify({ key: state.auth.key, me: state.auth.me, features: f }));
   try {
     await fetch('/api/features', {
       method: 'PATCH',
@@ -1007,11 +842,9 @@ async function saveFeatures(f) {
 }
 
 function logout() {
-  try {
-    fetch('/api/logout', { method: 'POST' });
-  } catch (e) {}
+  try { fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.removeItem('cyber_session');
   localStorage.removeItem('aura_session');
-  localStorage.removeItem('pmm_session');
   state.auth.loggedIn = false;
   state.auth.key = '';
   state.tab = 'status';
@@ -1019,7 +852,6 @@ function logout() {
   render();
 }
 
-// Timer ticker for countdown
 if (!state.timerInterval) {
   state.timerInterval = setInterval(() => {
     const el = document.getElementById('countdown-display');
@@ -1029,7 +861,6 @@ if (!state.timerInterval) {
   }, 1000);
 }
 
-// Sync device info with server if already logged in
 async function syncDeviceSession() {
   if (!state.auth.loggedIn || !state.auth.key) return;
   try {
@@ -1037,29 +868,19 @@ async function syncDeviceSession() {
     const res = await fetch('/api/redeem', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        key: state.auth.key,
-        hwid: devInfo.hwid,
-        device_model: devInfo.device_model,
-        device_os: devInfo.device_os
-      })
+      body: JSON.stringify({ key: state.auth.key, hwid: devInfo.hwid, device_model: devInfo.device_model, device_os: devInfo.device_os })
     });
     if (res.ok) {
       const data = await res.json();
       if (data.me) {
         state.auth.me = { ...state.auth.me, ...data.me };
-        localStorage.setItem('aura_session', JSON.stringify({
-          key: state.auth.key,
-          me: state.auth.me,
-          features: state.auth.me.features
-        }));
+        localStorage.setItem('cyber_session', JSON.stringify({ key: state.auth.key, me: state.auth.me, features: state.auth.me.features }));
         render();
       }
     }
   } catch (e) {}
 }
 
-// Initial Boot
 checkMaintenance();
 initSSE();
 render();
