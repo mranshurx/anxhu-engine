@@ -175,24 +175,9 @@ async function getRealClientDevice() {
 
 // Smart access key formatter supporting CYBER, DEFINE, PMM, etc.
 function formatKey(val) {
-  const upper = String(val || '').trim().toUpperCase();
-  // No special/test login shortcuts: only generated license-key formats are accepted.
-  const raw = upper.replace(/[^A-Z0-9]/g, '');
-  if (!raw) return '';
-  let pfxLen = 4;
-  if (raw.startsWith('DEFINE')) pfxLen = 6;
-  else if (raw.startsWith('PMM')) pfxLen = 3;
-  else if (raw.startsWith('CYBER')) pfxLen = 5;
-  else if (raw.length <= 3) return raw;
-
-  if (raw.length <= pfxLen) return raw;
-  const prefix = raw.slice(0, pfxLen);
-  const rest = raw.slice(pfxLen, pfxLen + 12);
-  const chunks = [prefix];
-  for (let i = 0; i < rest.length; i += 4) {
-    chunks.push(rest.slice(i, i + 4));
-  }
-  return chunks.join('-');
+  // Do not reshape/truncate license keys. Keep the admin-generated key intact;
+  // the server compares keys after normalizing separators and letter casing.
+  return String(val || '').trim().toUpperCase().replace(/\\s+/g, '');
 }
 
 // Countdown formatter
