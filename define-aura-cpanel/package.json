@@ -1,7 +1,7 @@
 {
-  "name": "define-aura-client",
-  "version": "1.7.0",
-  "description": "DEFINE AURA — key login, tunnel status, live match features replica",
+  "name": "cyber-x-silent-client",
+  "version": "1.8.0",
+  "description": "Cyber x silent — key login, tunnel status, live match features replica",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,8 +11,9 @@
     "node": ">=18.0.0"
   },
   "keywords": [
-    "define-aura",
-    "aura",
+    "cyber-x-silent",
+    "cyber",
+    "silent",
     "client"
   ],
   "author": "NullDash",
