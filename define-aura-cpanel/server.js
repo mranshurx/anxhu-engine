@@ -7,39 +7,14 @@ const db = require('./data/db');
 const interceptor = require('./src/engine/packet_interceptor');
 const gameTunnel = require('./src/engine/game_tunnel');
 
-// ============================================================
-// BRANDING
-// ============================================================
-const BRAND = 'Cyber x silent';
-const KEY_PREFIX = 'CYBER';
-const KEY_GROUPS = 3; // 4-char blocks after prefix -> CYBER-XXXX-XXXX-XXXX
-
-// ============================================================
-// REMOTE ADMIN KEY — checked online, never hardcoded
-// ============================================================
-const ADMIN_KEY_URL = process.env.ADMIN_KEY_URL
-  || 'https://raw.githubusercontent.com/mranshurx/anxhu-engine/refs/heads/main/adminkey.txt';
-const ADMIN_KEY_TTL = 60 * 1000;      // cache lifetime for a fetched key
-const ADMIN_POLL_MS = 60 * 1000;      // how often we re-check the remote file
-
-let adminKeyCache = { value: null, at: 0 };
-let lastSeenAdminKey = null;
-
-const LOGO_DIR = path.join(__dirname, 'data', 'logomain');
-const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.ico', '.avif'];
-const LOGO_ALIASES = new Set([
-  '/logo', '/logo.png', '/icon', '/icon.png',
-  '/apple-icon', '/apple-icon.png', '/favicon.ico',
-  '/opengraph-image', '/opengraph-image.png'
-]);
-
-// Start active UDP game tunnel (non-fatal)
+// Start active UDP game tunnel (non-fatal: hosting without UDP still boots the portal)
 try {
   gameTunnel.start();
 } catch (e) {
   console.error('[tunnel] UDP tunnel failed to start:', e.message);
 }
 
+// Initialize interceptor with saved features
 interceptor.setFeatures(db.get().global_features);
 
 const PORT = process.env.PORT || 15493;
@@ -52,20 +27,14 @@ const MIME_TYPES = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
-  '.avif': 'image/avif',
   '.woff2': 'font/woff2',
   '.woff': 'font/woff',
   '.ttf': 'font/ttf'
 };
 
-// ============================================================
-// SSE
-// ============================================================
+// SSE Clients set
 const sseClients = new Set();
 
 function broadcastEvent(eventName, data) {
@@ -100,97 +69,44 @@ function parseJsonBody(req) {
   });
 }
 
-function safeEqual(a, b) {
-  const ba = Buffer.from(String(a));
-  const bb = Buffer.from(String(b));
-  if (ba.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ba, bb);
-}
-
-// ============================================================
-// Remote admin key fetching
-// ============================================================
-function fetchText(url) {
-  return new Promise((resolve, reject) => {
-    const r = https.get(url, {
-      timeout: 8000,
-      headers: { 'User-Agent': 'cyber-x-silent-portal', 'Cache-Control': 'no-cache' }
-    }, (res) => {
-      if (res.statusCode !== 200) { res.resume(); return reject(new Error('http ' + res.statusCode)); }
-      let d = '';
-      res.setEncoding('utf8');
-      res.on('data', c => d += c);
-      res.on('end', () => resolve(d));
-    });
-    r.on('timeout', () => r.destroy(new Error('timeout')));
-    r.on('error', reject);
-  });
-}
-
-async function getAdminKey(force = false) {
-  const now = Date.now();
-  if (!force && adminKeyCache.value && (now - adminKeyCache.at) < ADMIN_KEY_TTL) {
-    return adminKeyCache.value;
-  }
-  try {
-    const bust = Math.floor(now / 60000); // minute bucket -> dodges CDN cache
-    const sep = ADMIN_KEY_URL.includes('?') ? '&' : '?';
-    const txt = await fetchText(`${ADMIN_KEY_URL}${sep}v=${bust}`);
-    const key = String(txt || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0] || '';
-    if (!key) throw new Error('adminkey.txt is empty');
-    adminKeyCache = { value: key, at: now };
-    return key;
-  } catch (e) {
-    return adminKeyCache.value || null;
-  }
-}
-
-async function pollAdminKey() {
-  const key = await getAdminKey(true);
-  if (!key) return;
-  if (lastSeenAdminKey === null) { lastSeenAdminKey = key; return; }
-  if (key !== lastSeenAdminKey) {
-    lastSeenAdminKey = key;
-    adminSessions.clear();
-    broadcastEvent('admin-key-changed', { at: new Date().toISOString() });
-    console.log('[admin] remote admin key changed — all admin sessions invalidated');
-  }
-}
-
-// ============================================================
-// Keys
-// ============================================================
-function generateRandomKey(prefix = KEY_PREFIX) {
+function generateRandomKey(prefix = 'CYBER') {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const chunk = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  const groups = Array.from({ length: KEY_GROUPS }, () => chunk());
-  return [prefix, ...groups].join('-');
+  return `${prefix}-${chunk()}-${chunk()}-${chunk()}`;
 }
 
-// ============================================================
-// Admin sessions (in-memory, keyed to the remote admin key value)
-// ============================================================
-const ADMIN_SESSION_TTL = 12 * 60 * 60 * 1000;
-const adminSessions = new Map();      // token -> { expiresAt, keyValue }
+// Admin panel session auth: the only accepted password is fetched live from the configured key source.
+const ADMIN_KEY_URL = 'https://raw.githubusercontent.com/mranshurx/anxhu-engine/refs/heads/main/adminkey.txt';
+function fetchLiveAdminKey() {
+  return new Promise((resolve) => {
+    const request = https.get(ADMIN_KEY_URL, { headers: { 'User-Agent': 'CYBER-X-SILENT-Admin' } }, (response) => {
+      if (response.statusCode !== 200) { response.resume(); return resolve(null); }
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', chunk => { body += chunk; if (body.length > 2048) request.destroy(); });
+      response.on('end', () => resolve(body.trim().split(/\r?\n/)[0] || null));
+      response.on('error', () => resolve(null));
+    });
+    request.setTimeout(5000, () => request.destroy(new Error('admin key source timeout')));
+    request.on('error', () => resolve(null));
+  });
+}
+const ADMIN_SESSION_TTL = 12 * 60 * 60 * 1000; // 12 hours
+const adminSessions = new Map(); // token -> expiresAt
 const adminLoginAttempts = new Map(); // ip -> { fails, reset }
 
-async function isAdminAuthed(req) {
+function isAdminAuthed(req) {
   const m = (req.headers['authorization'] || '').match(/^Bearer\s+(.+)$/i);
   if (!m) return false;
-  const token = m[1];
-  const sess = adminSessions.get(token);
-  if (!sess) return false;
-  if (Date.now() > sess.expiresAt) { adminSessions.delete(token); return false; }
-
-  // If the online admin key no longer matches what this session logged in with -> dead session
-  const remote = await getAdminKey(false);
-  if (remote && sess.keyValue !== remote) { adminSessions.delete(token); return false; }
+  const expiresAt = adminSessions.get(m[1]);
+  if (!expiresAt) return false;
+  if (Date.now() > expiresAt) {
+    adminSessions.delete(m[1]);
+    return false;
+  }
   return true;
 }
 
-// ============================================================
-// Device helpers
-// ============================================================
 function sanitizeDeviceString(s) {
   return String(s || '').replace(/[^\x20-\x7E]/g, '').replace(/[<>&"'\\/]/g, '').slice(0, 120);
 }
@@ -213,14 +129,36 @@ function detectServerDevice(ua = '') {
   let os = 'Unknown OS';
   let model = 'Unknown Device';
 
-  if (/Windows NT 10.0/i.test(ua)) { os = 'Windows 10/11 64-bit'; model = 'Windows PC'; }
-  else if (/Windows NT 6.3/i.test(ua)) { os = 'Windows 8.1'; model = 'Windows PC'; }
-  else if (/Windows NT 6.1/i.test(ua)) { os = 'Windows 7'; model = 'Windows PC'; }
-  else if (/iPhone/i.test(ua)) { const v = ua.match(/OS (\d+[_\.]\d+)/); os = v ? `iOS ${v[1].replace('_', '.')}` : 'iOS'; model = `iPhone (${os})`; }
-  else if (/iPad/i.test(ua)) { const v = ua.match(/OS (\d+[_\.]\d+)/); os = v ? `iPadOS ${v[1].replace('_', '.')}` : 'iPadOS'; model = `iPad (${os})`; }
-  else if (/Macintosh|Mac OS X/i.test(ua)) { const v = ua.match(/Mac OS X (\d+[_\.]\d+)/); os = v ? `macOS ${v[1].replace('_', '.')}` : 'macOS'; model = `Mac (${os})`; }
-  else if (/Android/i.test(ua)) { const v = ua.match(/Android (\d+(\.\d+)?)/); os = v ? `Android ${v[1]}` : 'Android'; const m = ua.match(/;\s*([A-Za-z0-9\-\s\_]+)\s+Build\//); model = m ? `${m[1].trim()} (${os})` : `Android Device (${os})`; }
-  else if (/Linux/i.test(ua)) { os = 'Linux'; model = 'Linux Desktop'; }
+  if (/Windows NT 10.0/i.test(ua)) {
+    os = 'Windows 10/11 64-bit';
+    model = 'Windows PC';
+  } else if (/Windows NT 6.3/i.test(ua)) {
+    os = 'Windows 8.1';
+    model = 'Windows PC';
+  } else if (/Windows NT 6.1/i.test(ua)) {
+    os = 'Windows 7';
+    model = 'Windows PC';
+  } else if (/iPhone/i.test(ua)) {
+    const v = ua.match(/OS (\d+[_\.]\d+)/);
+    os = v ? `iOS ${v[1].replace('_', '.')}` : 'iOS';
+    model = `iPhone (${os})`;
+  } else if (/iPad/i.test(ua)) {
+    const v = ua.match(/OS (\d+[_\.]\d+)/);
+    os = v ? `iPadOS ${v[1].replace('_', '.')}` : 'iPadOS';
+    model = `iPad (${os})`;
+  } else if (/Macintosh|Mac OS X/i.test(ua)) {
+    const v = ua.match(/Mac OS X (\d+[_\.]\d+)/);
+    os = v ? `macOS ${v[1].replace('_', '.')}` : 'macOS';
+    model = `Mac (${os})`;
+  } else if (/Android/i.test(ua)) {
+    const v = ua.match(/Android (\d+(\.\d+)?)/);
+    os = v ? `Android ${v[1]}` : 'Android';
+    const m = ua.match(/;\s*([A-Za-z0-9\-\s\_]+)\s+Build\//);
+    model = m ? `${m[1].trim()} (${os})` : `Android Device (${os})`;
+  } else if (/Linux/i.test(ua)) {
+    os = 'Linux';
+    model = 'Linux Desktop';
+  }
 
   let browser = 'Browser';
   if (/Edg\//i.test(ua)) browser = 'Edge';
@@ -228,58 +166,39 @@ function detectServerDevice(ua = '') {
   else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
   else if (/Firefox\//i.test(ua)) browser = 'Firefox';
 
-  if (model === 'Windows PC' || model === 'Linux Desktop') model = `${model} (${browser})`;
+  if (model === 'Windows PC' || model === 'Linux Desktop') {
+    model = `${model} (${browser})`;
+  }
 
   return { os, model };
 }
 
-// ============================================================
-// Logo resolution (data/logomain — first image wins, "logo*" preferred)
-// ============================================================
-let logoCache = { file: null, at: 0 };
-
-function getLogoFile() {
-  const now = Date.now();
-  if (logoCache.at && (now - logoCache.at) < 5000) return logoCache.file;
-
-  let found = null;
-  try {
-    const entries = fs.readdirSync(LOGO_DIR)
-      .filter(n => !n.startsWith('.'))
-      .filter(n => IMAGE_EXTS.includes(path.extname(n).toLowerCase()))
-      .sort((a, b) => {
-        const ap = a.toLowerCase().startsWith('logo') ? 0 : 1;
-        const bp = b.toLowerCase().startsWith('logo') ? 0 : 1;
-        if (ap !== bp) return ap - bp;
-        return a.localeCompare(b);
-      });
-    if (entries.length) found = path.join(LOGO_DIR, entries[0]);
-  } catch (e) { found = null; }
-
-  logoCache = { file: found, at: now };
-  return found;
-}
-
-// ============================================================
-// HAPP / XRAY config
-// ============================================================
+// Full XRAY-compatible JSON config. HAPP imports imported JSON as-is into its
+// XRAY core, so this must be a valid xray config (own inbounds + hysteria2 outbound).
 function buildHappConfig(key) {
   const dbState = db.get();
   const nodes = [...(dbState.nodes || [])].sort((a, b) => (a.ping || 999) - (b.ping || 999));
   const primary = nodes[0] || { name: 'Singapore Node 01', host: 'sg1.nulldash.store', port: 443 };
-  const chunk = String(key || KEY_PREFIX).replace(/[^A-Z0-9]/g, '').slice(-4) || '0000';
+  const keyRecord = db.findKey(key);
+  const chunk = String(key || 'CYBER-TEST-1234-5678').replace(/[^A-Z0-9]/g, '').slice(-4) || '0000';
   const tag = `CYBER-MODZ-${chunk}`;
 
   return {
     log: { loglevel: 'warning' },
     inbounds: [
       {
-        tag: 'socks-in', listen: '127.0.0.1', port: 10808, protocol: 'socks',
+        tag: 'socks-in',
+        listen: '127.0.0.1',
+        port: 10808,
+        protocol: 'socks',
         settings: { auth: 'noauth', udp: true },
         sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'], routeOnly: false }
       },
       {
-        tag: 'http-in', listen: '127.0.0.1', port: 10809, protocol: 'http',
+        tag: 'http-in',
+        listen: '127.0.0.1',
+        port: 10809,
+        protocol: 'http',
         settings: {},
         sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'], routeOnly: false }
       }
@@ -287,12 +206,20 @@ function buildHappConfig(key) {
     outbounds: [
       { tag: 'direct', protocol: 'freedom', settings: {} },
       {
-        tag: 'cyber-tunnel',
+        tag: 'aura-tunnel',
         protocol: 'hysteria2',
-        settings: { address: primary.host, port: primary.port, auth: key },
+        settings: {
+          address: primary.host,
+          port: primary.port,
+          auth: key
+        },
         streamSettings: {
           security: 'tls',
-          tlsSettings: { serverName: primary.host, allowInsecure: false, alpn: ['h3'] }
+          tlsSettings: {
+            serverName: primary.host,
+            allowInsecure: false,
+            alpn: ['h3']
+          }
         }
       }
     ],
@@ -302,34 +229,44 @@ function buildHappConfig(key) {
         {
           type: 'field',
           domain: [
-            'domain:freefiremobile.com', 'domain:garena.com', 'domain:garena.in',
-            'domain:ff.garena.com', 'domain:gp.ff.garena.com', 'domain:cdngr.garena.com'
+            'domain:freefiremobile.com',
+            'domain:garena.com',
+            'domain:garena.in',
+            'domain:ff.garena.com',
+            'domain:gp.ff.garena.com',
+            'domain:cdngr.garena.com'
           ],
-          outboundTag: 'cyber-tunnel'
+          outboundTag: 'aura-tunnel'
         }
       ]
     },
     meta: {
-      client: BRAND,
+      client: 'DEFINE CYBER',
       serverDescription: tag,
-      tag,
-      key,
-      version: '1.8',
+      tag: tag,
+      key: key,
+      version: '1.7',
       created_at: new Date().toISOString(),
-      expires: null,
+      expires: (keyRecord && keyRecord.expires_at) || null,
       bandwidth: { used: 0, total: 69 },
-      nodes: dbState.nodes.map(n => ({ name: n.name, host: n.host, port: n.port, ping: n.ping, status: n.status })),
+      nodes: dbState.nodes.map(n => ({
+        name: n.name, host: n.host, port: n.port, ping: n.ping, status: n.status
+      })),
       active_features: dbState.global_features
     }
   };
 }
 
+// Wrap a subscription URL into an encrypted HAPP one-tap link (happ://crypt5/...)
 function fetchHappCryptoLink(subUrl) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({ url: subUrl });
     const r = https.request('https://crypto.happ.su/api-v2.php', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      },
       timeout: 6000
     }, (res) => {
       let data = '';
@@ -349,31 +286,39 @@ function fetchHappCryptoLink(subUrl) {
   });
 }
 
-// ============================================================
-// SERVER
-// ============================================================
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname;
 
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
 
-  // ---------- CLIENT API ----------
+  // ==========================================
+  // CLIENT API ENDPOINTS
+  // ==========================================
 
+  // Check Maintenance Status
   if (pathname === '/api/maintenance' && req.method === 'GET') {
     return sendJson(res, 200, db.getMaintenance());
   }
 
+  // Client Key Authentication / Redeem
   if (pathname === '/api/redeem' && req.method === 'POST') {
     const body = await parseJsonBody(req);
     const rawKey = (body.key || '').trim();
     const key = rawKey.toUpperCase();
 
-    if (!rawKey) return sendJson(res, 400, { error: 'enter your full key' });
+    if (!rawKey) {
+      return sendJson(res, 400, { error: 'enter your full key' });
+    }
 
     const ua = req.headers['user-agent'] || '';
     const serverDev = detectServerDevice(ua);
@@ -382,33 +327,71 @@ const server = http.createServer(async (req, res) => {
     const clientDeviceOs = sanitizeDeviceString(body.device_os) || serverDev.os;
 
     const maintenance = db.getMaintenance();
+    const isSpecialLogin = ['OWNER', 'ADMIN', 'TEST'].includes(key);
+
+    // Maintenance check
     if (maintenance.enabled) {
-      const isAllowed = (maintenance.allowed_logins || []).some(item => String(item).toUpperCase() === key);
+      const isAllowed = maintenance.allowed_logins.some(
+        item => item.toUpperCase() === key || (isSpecialLogin && item.toUpperCase() === key)
+      );
       if (!isAllowed) {
-        return sendJson(res, 403, {
-          error: maintenance.blocked
-            ? 'your account is paused during maintenance. back soon.'
-            : 'maintenance in progress. only allowed logins are currently permitted.'
+        return sendJson(res, 403, { 
+          error: maintenance.blocked 
+            ? 'your account is paused during maintenance. back soon.' 
+            : 'maintenance in progress. only allowed test logins are currently permitted.' 
         });
       }
     }
 
-    const keyRecord = db.findKey(key);
-    if (!keyRecord) return sendJson(res, 400, { error: 'invalid key' });
-    if (keyRecord.status === 'revoked') return sendJson(res, 400, { error: 'this license key has been revoked' });
-    if (new Date(keyRecord.expires_at).getTime() < Date.now()) return sendJson(res, 400, { error: 'this license key has expired' });
+    // Special Owner / Test Access
+    if (isSpecialLogin) {
+      return sendJson(res, 200, {
+        ok: true,
+        me: {
+          status: 'active',
+          bound_hwid: clientHwid,
+          device_model: clientDeviceModel,
+          device_os: clientDeviceOs,
+          expires_at: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
+          features: db.get().global_features
+        }
+      });
+    }
 
+    // Check Key in Database
+    let keyRecord = db.findKey(key);
+
+    if (!keyRecord) {
+      return sendJson(res, 400, { error: 'invalid key' });
+    }
+
+    if (keyRecord.status === 'revoked') {
+      return sendJson(res, 400, { error: 'this license key has been revoked' });
+    }
+
+    if (new Date(keyRecord.expires_at).getTime() < Date.now()) {
+      return sendJson(res, 400, { error: 'this license key has expired' });
+    }
+
+    // Device lock check & binding
     if (!keyRecord.bound_hwid) {
+      // Key was unbound: lock to current real client device
       keyRecord.bound_hwid = clientHwid;
       keyRecord.device_model = clientDeviceModel;
       keyRecord.device_os = clientDeviceOs;
-      db.updateKey(key, { bound_hwid: clientHwid, device_model: clientDeviceModel, device_os: clientDeviceOs });
+      db.updateKey(key, {
+        bound_hwid: clientHwid,
+        device_model: clientDeviceModel,
+        device_os: clientDeviceOs
+      });
     } else {
+      // Key is bound to a device: verify HWID match
       if (keyRecord.bound_hwid !== clientHwid) {
-        return sendJson(res, 403, {
-          error: `key is locked to another device (${keyRecord.device_model || 'other device'}). reset device lock from the site first.`
+        return sendJson(res, 403, { 
+          error: `key is locked to another device (${keyRecord.device_model || 'other device'}). reset device lock from the site first.` 
         });
       }
+      // Update device_model if client provided enriched details (e.g. GPU)
       if (clientDeviceModel && clientDeviceModel !== 'Unknown Device' && clientDeviceModel !== keyRecord.device_model) {
         keyRecord.device_model = clientDeviceModel;
         keyRecord.device_os = clientDeviceOs;
@@ -424,32 +407,45 @@ const server = http.createServer(async (req, res) => {
         device_model: keyRecord.device_model,
         device_os: keyRecord.device_os,
         expires_at: keyRecord.expires_at,
-        features: keyRecord.features && Object.keys(keyRecord.features).length > 0
-          ? keyRecord.features
+        features: keyRecord.features && Object.keys(keyRecord.features).length > 0 
+          ? keyRecord.features 
           : db.get().global_features
       }
     });
   }
 
+  // Features GET and PATCH
   if (pathname === '/api/features') {
-    if (req.method === 'GET') return sendJson(res, 200, { features: db.get().global_features });
+    if (req.method === 'GET') {
+      return sendJson(res, 200, { features: db.get().global_features });
+    }
     if (req.method === 'PATCH') {
       const body = await parseJsonBody(req);
       const key = (body.key || '').trim();
-      if (!body.features || !key) return sendJson(res, 400, { error: 'key and features required' });
+      if (!body.features || !key) {
+        return sendJson(res, 400, { error: 'key and features required' });
+      }
       const keyRecord = db.findKey(key);
-      if (!keyRecord) return sendJson(res, 404, { error: 'key not found' });
-      if (keyRecord.status === 'revoked') return sendJson(res, 403, { error: 'this license key has been revoked' });
-      if (new Date(keyRecord.expires_at).getTime() < Date.now()) return sendJson(res, 400, { error: 'this license key has expired' });
+      if (!keyRecord) {
+        return sendJson(res, 404, { error: 'key not found' });
+      }
+      if (keyRecord.status === 'revoked') {
+        return sendJson(res, 403, { error: 'this license key has been revoked' });
+      }
+      if (new Date(keyRecord.expires_at).getTime() < Date.now()) {
+        return sendJson(res, 400, { error: 'this license key has expired' });
+      }
       db.updateKey(key, { features: deepMerge(keyRecord.features || {}, body.features) });
       return sendJson(res, 200, { ok: true, features: db.get().global_features });
     }
   }
 
+  // Tunnel Socket Statistics
   if (pathname === '/api/engine/tunnel-stats' && req.method === 'GET') {
     return sendJson(res, 200, gameTunnel.getStats());
   }
 
+  // HAPP subscription feed (own API consumed by the HAPP app)
   if (pathname === '/api/happ/sub' && req.method === 'GET') {
     const key = (parsedUrl.searchParams.get('key') || '').trim();
     const keyRecord = key ? db.findKey(key) : null;
@@ -465,10 +461,10 @@ const server = http.createServer(async (req, res) => {
       : new Date(Date.now() + 7 * 86400000);
     const expireUnix = Math.floor(expiresAt.getTime() / 1000);
     const totalBytes = 69 * 1024 * 1024 * 1024;
-    const auth = encodeURIComponent(key || KEY_PREFIX);
+    const auth = encodeURIComponent(key || 'CYBER-TEST-1234-5678');
 
     const lines = [
-      `#profile-title: ${BRAND}`,
+      '#profile-title: DEFINE CYBER',
       '#profile-update-interval: 1',
       `#subscription-userinfo: upload=0; download=0; total=${totalBytes}; expire=${expireUnix}`,
       ...nodes.map((n) => {
@@ -481,7 +477,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, {
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'no-store',
-      'profile-title': BRAND,
+      'profile-title': 'DEFINE CYBER',
       'profile-update-interval': '1',
       'subscription-userinfo': `upload=0; download=0; total=${totalBytes}; expire=${expireUnix}`
     });
@@ -489,55 +485,72 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Happ one-tap setup: encrypt our subscription URL into a happ://crypt5 link
   if (pathname === '/api/happ' && req.method === 'POST') {
     const body = await parseJsonBody(req);
-    const key = body.key || '';
+    const key = body.key || 'CYBER-TEST-1234-5678';
     const publicOrigin = (process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
     const origin = (publicOrigin || body.origin || `http://${req.headers.host}`).replace(/\/+$/, '');
     const subUrl = `${origin}/api/happ/sub?key=${encodeURIComponent(key)}`;
 
     let deepLink = null;
     let cryptoError = null;
-    try { deepLink = await fetchHappCryptoLink(subUrl); }
-    catch (e) { cryptoError = e.message; }
+    try {
+      deepLink = await fetchHappCryptoLink(subUrl);
+    } catch (e) {
+      cryptoError = e.message;
+    }
 
     return sendJson(res, 200, {
       ok: true,
       href: 'https://apps.apple.com/us/app/happ-proxy-utility/id6504287215',
-      subUrl,
-      deepLink,
-      cryptoError,
+      subUrl: subUrl,
+      deepLink: deepLink,
+      cryptoError: cryptoError,
       config: buildHappConfig(key)
     });
   }
 
+  // Reset / Unbind HWID (User side)
   if ((pathname === '/api/unbind-hwid' || pathname === '/api/reset-hwid') && req.method === 'POST') {
     const body = await parseJsonBody(req);
-    if (!body.key) return sendJson(res, 400, { error: 'key required' });
+    if (!body.key) {
+      return sendJson(res, 400, { error: 'key required' });
+    }
     const keyObj = db.findKey(body.key);
-    if (!keyObj) return sendJson(res, 404, { error: 'key not found' });
+    if (!keyObj) {
+      return sendJson(res, 404, { error: 'key not found' });
+    }
     if (keyObj.bound_hwid && keyObj.bound_hwid !== (body.hwid || '').trim()) {
-      return sendJson(res, 403, { error: 'key is locked to another device. reset device lock from the site first.' });
+      return sendJson(res, 403, {
+        error: 'key is locked to another device. reset device lock from the site first.'
+      });
     }
     db.updateKey(body.key, { bound_hwid: null, device_model: null, device_os: null });
-    return sendJson(res, 200, { ok: true, message: 'Device lock removed. Next login will bind your current device.' });
+    return sendJson(res, 200, {
+      ok: true,
+      message: 'Device lock removed. Next login will bind your current device.'
+    });
   }
 
+  // Config Export Download
   if (pathname === '/api/config/export') {
-    const key = (parsedUrl.searchParams.get('key') || '').trim();
+    const key = (parsedUrl.searchParams.get('key') || '').trim() || 'CYBER-TEST-1234-5678';
     const configData = buildHappConfig(key);
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Content-Disposition': 'attachment; filename="cyber-x-silent-config.json"'
+      'Content-Disposition': 'attachment; filename="aura-happ-config.json"'
     });
     res.end(JSON.stringify(configData, null, 2));
     return;
   }
 
+  // Logout
   if (pathname === '/api/logout' && req.method === 'POST') {
     return sendJson(res, 200, { ok: true });
   }
 
+  // Real-time Event Stream (SSE)
   if (pathname === '/api/events') {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -547,36 +560,44 @@ const server = http.createServer(async (req, res) => {
     });
     res.write('event: connected\ndata: {}\n\n');
     sseClients.add(res);
-    req.on('close', () => { sseClients.delete(res); });
+
+    req.on('close', () => {
+      sseClients.delete(res);
+    });
     return;
   }
 
-  // ---------- ADMIN API ----------
+  // ==========================================
+  // BACKEND ADMIN API ENDPOINTS (/api/admin/...)
+  // ==========================================
+
+  // Admin auth guard for all /api/admin/* routes
   if (pathname.startsWith('/api/admin/')) {
     if (pathname === '/api/admin/login' && req.method === 'POST') {
       const body = await parseJsonBody(req);
       const ip = (req.headers['cf-connecting-ip'] || (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown');
       const now = Date.now();
       let rec = adminLoginAttempts.get(ip);
-      if (!rec || now > rec.reset) rec = { fails: 0, reset: now + 5 * 60 * 1000 };
-      if (rec.fails >= 100) return sendJson(res, 429, { error: 'too many attempts. try again in 5 minutes.' });
-
-      const givenPassword = String(body.password || '').trim();
-      const remoteKey = await getAdminKey(true);
-
-      if (!remoteKey) {
-        return sendJson(res, 503, { error: 'could not verify admin key online. check adminkey.txt' });
+      if (!rec || now > rec.reset) {
+        rec = { fails: 0, reset: now + 5 * 60 * 1000 };
       }
-
-      if (!safeEqual(givenPassword, remoteKey)) {
+      if (rec.fails >= 100) {
+        return sendJson(res, 429, { error: 'too many attempts. try again in 5 minutes.' });
+      }
+      const givenPassword = String(body.password || '').trim();
+      const liveAdminKey = await fetchLiveAdminKey();
+      if (!liveAdminKey) {
+        return sendJson(res, 503, { error: 'could not verify admin key online; try again later' });
+      }
+      const isMatch = givenPassword.length > 0 && givenPassword === liveAdminKey;
+      if (!isMatch) {
         rec.fails += 1;
         adminLoginAttempts.set(ip, rec);
-        return sendJson(res, 401, { error: 'wrong admin key' });
+        return sendJson(res, 401, { error: 'wrong admin password' });
       }
-
       adminLoginAttempts.delete(ip);
       const token = crypto.randomBytes(32).toString('hex');
-      adminSessions.set(token, { expiresAt: now + ADMIN_SESSION_TTL, keyValue: remoteKey });
+      adminSessions.set(token, now + ADMIN_SESSION_TTL);
       return sendJson(res, 200, { ok: true, token });
     }
 
@@ -586,16 +607,12 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true });
     }
 
-    if (!(await isAdminAuthed(req))) {
+    if (!isAdminAuthed(req)) {
       return sendJson(res, 401, { error: 'admin authentication required' });
     }
   }
 
-  if (pathname === '/api/admin/whoami' && req.method === 'GET') {
-    const remoteKey = await getAdminKey(false);
-    return sendJson(res, 200, { ok: true, keySource: ADMIN_KEY_URL, online: !!remoteKey });
-  }
-
+  // Admin Overview Metrics
   if (pathname === '/api/admin/overview' && req.method === 'GET') {
     const data = db.get();
     const totalKeys = data.keys.length;
@@ -604,19 +621,32 @@ const server = http.createServer(async (req, res) => {
     const expiredKeys = data.keys.filter(k => new Date(k.expires_at) <= Date.now()).length;
     const revokedKeys = data.keys.filter(k => k.status === 'revoked').length;
     const totalUsers = data.nodes.reduce((acc, n) => acc + (n.users || 0), 0);
-    return sendJson(res, 200, { totalKeys, activeKeys, unboundKeys, expiredKeys, revokedKeys, totalUsers, maintenance: data.maintenance, nodes: data.nodes });
+
+    return sendJson(res, 200, {
+      totalKeys,
+      activeKeys,
+      unboundKeys,
+      expiredKeys,
+      revokedKeys,
+      totalUsers,
+      maintenance: data.maintenance,
+      nodes: data.nodes
+    });
   }
 
+  // Admin Keys List
   if (pathname === '/api/admin/keys' && req.method === 'GET') {
-    return sendJson(res, 200, { keys: db.get().keys });
+    const data = db.get();
+    return sendJson(res, 200, { keys: data.keys });
   }
 
+  // Admin Generate Keys
   if (pathname === '/api/admin/keys/generate' && req.method === 'POST') {
     const body = await parseJsonBody(req);
     const count = Math.min(Math.max(parseInt(body.count, 10) || 1, 1), 50);
     const durationDays = parseInt(body.days, 10) || 30;
     const note = body.note || 'Generated from Admin Panel';
-    const prefix = (body.prefix || KEY_PREFIX).trim().toUpperCase();
+    const prefix = (body.prefix || 'CYBER').trim().toUpperCase();
 
     const createdKeys = [];
     for (let i = 0; i < count; i++) {
@@ -626,37 +656,45 @@ const server = http.createServer(async (req, res) => {
         status: 'active',
         bound_hwid: null,
         device_model: null,
-        device_os: null,
         created_at: new Date().toISOString(),
-        expires_at: durationDays > 999
-          ? new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000).toISOString()
+        expires_at: durationDays > 999 
+          ? new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000).toISOString() // lifetime
           : new Date(Date.now() + durationDays * 24 * 3600 * 1000).toISOString(),
-        note,
+        note: note,
         features: db.get().global_features
       };
       db.addKey(newKeyObj);
       createdKeys.push(newKeyObj);
     }
+
     return sendJson(res, 200, { ok: true, keys: createdKeys });
   }
 
+  // Admin Key Actions (Unbind HWID, Toggle Status, Extend, Delete)
   const keyActionMatch = pathname.match(/^\/api\/admin\/keys\/([^/]+)\/(unbind|toggle-status|extend)$/);
   if (keyActionMatch && req.method === 'POST') {
     const targetKey = decodeURIComponent(keyActionMatch[1]);
     const action = keyActionMatch[2];
+
     const keyObj = db.findKey(targetKey);
-    if (!keyObj) return sendJson(res, 404, { error: 'Key not found' });
+    if (!keyObj) {
+      return sendJson(res, 404, { error: 'Key not found' });
+    }
 
     if (action === 'unbind') {
-      db.updateKey(targetKey, { bound_hwid: null, device_model: null, device_os: null });
+      db.updateKey(targetKey, { bound_hwid: null, device_model: null });
       return sendJson(res, 200, { ok: true, message: `Unbound HWID for ${targetKey}` });
     }
+
     if (action === 'toggle-status') {
       const newStatus = keyObj.status === 'active' ? 'revoked' : 'active';
       db.updateKey(targetKey, { status: newStatus });
-      if (newStatus === 'revoked') broadcastEvent('logout', { key: targetKey });
+      if (newStatus === 'revoked') {
+        broadcastEvent('logout', { key: targetKey });
+      }
       return sendJson(res, 200, { ok: true, status: newStatus });
     }
+
     if (action === 'extend') {
       const body = await parseJsonBody(req);
       const addDays = parseInt(body.days, 10) || 30;
@@ -668,6 +706,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // Admin Delete Key
   const deleteKeyMatch = pathname.match(/^\/api\/admin\/keys\/([^/]+)$/);
   if (deleteKeyMatch && req.method === 'DELETE') {
     const targetKey = decodeURIComponent(deleteKeyMatch[1]);
@@ -676,49 +715,46 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true });
   }
 
+  // Admin Update Maintenance Settings
   if (pathname === '/api/admin/maintenance' && req.method === 'POST') {
     const body = await parseJsonBody(req);
     const updated = db.setMaintenance({
       enabled: typeof body.enabled === 'boolean' ? body.enabled : false,
       blocked: typeof body.blocked === 'boolean' ? body.blocked : false,
-      allowed_logins: Array.isArray(body.allowed_logins)
-        ? body.allowed_logins.map(s => String(s).trim()).filter(Boolean)
-        : String(body.allowed_logins || '').split(',').map(s => s.trim()).filter(Boolean),
+      allowed_logins: Array.isArray(body.allowed_logins) 
+        ? body.allowed_logins 
+        : (body.allowed_logins || '').split(',').map(s => s.trim()).filter(Boolean),
       title: body.title || 'maintenance',
       message: body.message || "we're doing maintenance. everything is paused until we're back."
     });
+
     broadcastEvent('maintenance', updated.maintenance);
     return sendJson(res, 200, { ok: true, maintenance: updated.maintenance });
   }
 
-  // ---------- STATIC ----------
-
-  // Brand logo served from data/logomain (falls back to public/logo.png)
-  if (LOGO_ALIASES.has(pathname)) {
-    const logoFile = getLogoFile();
-    const fallback = path.join(ROOT_DIR, 'public', 'logo.png');
-    const target = logoFile || (fs.existsSync(fallback) ? fallback : null);
-    if (!target) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('404 Not Found'); return; }
-    fs.readFile(target, (err, content) => {
-      if (err) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('404 Not Found'); return; }
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[path.extname(target).toLowerCase()] || 'image/png', 'Cache-Control': 'no-cache' });
-      res.end(content);
-    });
-    return;
-  }
-
-  // Direct folder access: /logomain/<file>
-  if (pathname.startsWith('/logomain/')) {
-    const rel = decodeURIComponent(pathname.slice('/logomain/'.length));
-    const target = path.resolve(path.join(LOGO_DIR, rel));
-    if (target.startsWith(path.resolve(LOGO_DIR))) {
-      fs.readFile(target, (err, content) => {
-        if (err) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('404 Not Found'); return; }
-        res.writeHead(200, { 'Content-Type': MIME_TYPES[path.extname(target).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+  // ==========================================
+  // STATIC ASSET & PAGE ROUTING (path-traversal safe)
+  // ==========================================
+  // Use the first supported image found in data/logomain/ as the shared client/admin logo.
+  if (pathname === '/logo' || pathname === '/logo.png') {
+    const logoDir = path.join(ROOT_DIR, 'data', 'logomain');
+    const allowedLogoExts = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico']);
+    let logoFile = null;
+    try {
+      const candidates = fs.readdirSync(logoDir).filter(name => allowedLogoExts.has(path.extname(name).toLowerCase())).sort();
+      if (candidates.length) logoFile = path.join(logoDir, candidates[0]);
+    } catch (_) {}
+    if (logoFile) {
+      const ext = path.extname(logoFile).toLowerCase();
+      const type = MIME_TYPES[ext] || (ext === '.webp' ? 'image/webp' : 'application/octet-stream');
+      fs.readFile(logoFile, (err, content) => {
+        if (err) { res.writeHead(404); return res.end('Logo not found'); }
+        res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' });
         res.end(content);
       });
       return;
     }
+    // Fall back to the existing bundled logo until data/logomain/ contains an image.
   }
 
   const STATIC_ROUTES = new Map([
@@ -728,9 +764,18 @@ const server = http.createServer(async (req, res) => {
     ['/vip/admin.js', 'public/admin.js'],
     ['/admin.js', 'public/admin.js'],
     ['/', 'index.html'],
-    ['/index.html', 'index.html']
+    ['/index.html', 'index.html'],
+    ['/icon', 'public/icon.png'],
+    ['/icon.png', 'public/icon.png'],
+    ['/logo', 'public/logo.png'],
+    ['/logo.png', 'public/logo.png'],
+    ['/apple-icon', 'public/apple-icon.png'],
+    ['/apple-icon.png', 'public/apple-icon.png'],
+    ['/opengraph-image', 'public/opengraph-image.png'],
+    ['/opengraph-image.png', 'public/opengraph-image.png']
   ]);
 
+  // Old admin URLs redirect to /vip
   if (pathname === '/admin' || pathname === '/admin/' || pathname === '/admin/index.html') {
     res.writeHead(302, { Location: '/vip' });
     res.end();
@@ -749,17 +794,15 @@ const server = http.createServer(async (req, res) => {
     filePath = path.join(ROOT_DIR, pathname.slice(1));
   }
 
+  // Only files inside src/ or public/ (plus index.html) may ever be served
   if (filePath) {
     const resolved = path.resolve(filePath);
-    const allowedDirs = [
-      path.resolve(ROOT_DIR, 'src'),
-      path.resolve(ROOT_DIR, 'public'),
-      path.resolve(ROOT_DIR, 'vip'),
-      path.resolve(ROOT_DIR, 'data', 'logomain')
-    ];
+    const allowedDirs = [path.resolve(ROOT_DIR, 'src'), path.resolve(ROOT_DIR, 'public'), path.resolve(ROOT_DIR, 'vip')];
     const isInAllowedDir = allowedDirs.some(dir => resolved.startsWith(dir + path.sep));
     const isIndexHtml = resolved === path.resolve(ROOT_DIR, 'index.html');
-    if (!isInAllowedDir && !isIndexHtml) filePath = null;
+    if (!isInAllowedDir && !isIndexHtml) {
+      filePath = null;
+    }
   }
 
   if (!filePath) {
@@ -773,8 +816,13 @@ const server = http.createServer(async (req, res) => {
 
   fs.readFile(filePath, (err, content) => {
     if (err) {
-      if (err.code === 'ENOENT') { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('404 Not Found'); }
-      else { res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('500 Internal Server Error'); }
+      if (err.code === 'ENOENT') {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('404 Not Found');
+      } else {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('500 Internal Server Error');
+      }
     } else {
       res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache' });
       res.end(content);
@@ -782,13 +830,9 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-// Re-check the remote admin key on a timer
-setInterval(pollAdminKey, ADMIN_POLL_MS);
-pollAdminKey();
-
 const onListen = () => {
   console.log(`\n==============================================`);
-  console.log(`🚀 ${BRAND} Core System running!`);
+  console.log(`🚀 CYBER X SILENT Core System running!`);
   if (!isNaN(PORT)) {
     console.log(`👉 Client Portal: http://localhost:${PORT}/`);
     console.log(`👉 Admin Panel:   http://localhost:${PORT}/vip`);
@@ -796,9 +840,11 @@ const onListen = () => {
     console.log(`👉 Running via Passenger Socket: ${PORT}`);
     console.log(`👉 Admin Panel: /vip`);
   }
-  console.log(`🔐 Admin key source: ${ADMIN_KEY_URL}`);
   console.log(`==============================================\n`);
 };
 
-if (isNaN(PORT)) server.listen(PORT, onListen);
-else server.listen(Number(PORT), '0.0.0.0', onListen);
+if (isNaN(PORT)) {
+  server.listen(PORT, onListen);
+} else {
+  server.listen(Number(PORT), '0.0.0.0', onListen);
+}
