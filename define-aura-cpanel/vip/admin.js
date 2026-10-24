@@ -2,7 +2,7 @@
 let allKeys = [];
 let currentFilter = 'all';
 let currentVisibleKeys = [];
-let adminToken = sessionStorage.getItem('aura_admin_token') || sessionStorage.getItem('pmm_admin_token') || null;
+let adminToken = sessionStorage.getItem('cyber_x_silent_admin_token') || null;
 
 function escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
@@ -32,8 +32,8 @@ function hideLogin() {
 
 function clearAdminAuth() {
   adminToken = null;
-  sessionStorage.removeItem('aura_admin_token');
-  sessionStorage.removeItem('pmm_admin_token');
+  sessionStorage.removeItem('cyber_x_silent_admin_token');
+  
   showLogin();
 }
 
@@ -311,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.token) {
           adminToken = data.token;
-          sessionStorage.setItem('aura_admin_token', data.token);
+          sessionStorage.setItem('cyber_x_silent_admin_token', data.token);
           pwInput.value = '';
           errEl.style.display = 'none';
           hideLogin();
@@ -403,7 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (genForm) {
     genForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const prefix = document.getElementById('gen-prefix').value.trim() || 'AURA';
+      const prefix = document.getElementById('gen-prefix').value.trim() || 'CYBER';
       const days = document.getElementById('gen-duration').value;
       const count = document.getElementById('gen-count').value;
       const note = document.getElementById('gen-note').value.trim();
