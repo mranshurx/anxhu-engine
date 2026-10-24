@@ -180,7 +180,7 @@ function buildHappConfig(key) {
   const nodes = [...(dbState.nodes || [])].sort((a, b) => (a.ping || 999) - (b.ping || 999));
   const primary = nodes[0] || { name: 'Singapore Node 01', host: 'sg1.nulldash.store', port: 443 };
   const keyRecord = db.findKey(key);
-  const chunk = String(key || 'CYBER-TEST-1234-5678').replace(/[^A-Z0-9]/g, '').slice(-4) || '0000';
+  const chunk = String(key || '').replace(/[^A-Z0-9]/g, '').slice(-4) || '0000';
   const tag = `CYBER-MODZ-${chunk}`;
 
   return {
@@ -327,35 +327,17 @@ const server = http.createServer(async (req, res) => {
     const clientDeviceOs = sanitizeDeviceString(body.device_os) || serverDev.os;
 
     const maintenance = db.getMaintenance();
-    const isSpecialLogin = ['OWNER', 'ADMIN', 'TEST'].includes(key);
 
     // Maintenance check
     if (maintenance.enabled) {
-      const isAllowed = maintenance.allowed_logins.some(
-        item => item.toUpperCase() === key || (isSpecialLogin && item.toUpperCase() === key)
-      );
+      const isAllowed = maintenance.allowed_logins.some(item => item.toUpperCase() === key);
       if (!isAllowed) {
         return sendJson(res, 403, { 
           error: maintenance.blocked 
             ? 'your account is paused during maintenance. back soon.' 
-            : 'maintenance in progress. only allowed test logins are currently permitted.' 
+            : 'maintenance in progress. please try again later.' 
         });
       }
-    }
-
-    // Special Owner / Test Access
-    if (isSpecialLogin) {
-      return sendJson(res, 200, {
-        ok: true,
-        me: {
-          status: 'active',
-          bound_hwid: clientHwid,
-          device_model: clientDeviceModel,
-          device_os: clientDeviceOs,
-          expires_at: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
-          features: db.get().global_features
-        }
-      });
     }
 
     // Check Key in Database
@@ -461,7 +443,12 @@ const server = http.createServer(async (req, res) => {
       : new Date(Date.now() + 7 * 86400000);
     const expireUnix = Math.floor(expiresAt.getTime() / 1000);
     const totalBytes = 69 * 1024 * 1024 * 1024;
-    const auth = encodeURIComponent(key || 'CYBER-TEST-1234-5678');
+    if (!key || !keyRecord || keyRecord.status !== 'active' || !keyRecord.expires_at || new Date(keyRecord.expires_at).getTime() <= Date.now()) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end('#profile-title: invalid key\n');
+      return;
+    }
+    const auth = encodeURIComponent(key);
 
     const lines = [
       '#profile-title: DEFINE CYBER',
@@ -488,7 +475,11 @@ const server = http.createServer(async (req, res) => {
   // Happ one-tap setup: encrypt our subscription URL into a happ://crypt5 link
   if (pathname === '/api/happ' && req.method === 'POST') {
     const body = await parseJsonBody(req);
-    const key = body.key || 'CYBER-TEST-1234-5678';
+    const key = String(body.key || '').trim().toUpperCase();
+    const keyRecord = key ? db.findKey(key) : null;
+    if (!keyRecord || keyRecord.status !== 'active' || !keyRecord.expires_at || new Date(keyRecord.expires_at).getTime() <= Date.now()) {
+      return sendJson(res, 403, { ok: false, error: 'a valid generated license key is required' });
+    }
     const publicOrigin = (process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
     const origin = (publicOrigin || body.origin || `http://${req.headers.host}`).replace(/\/+$/, '');
     const subUrl = `${origin}/api/happ/sub?key=${encodeURIComponent(key)}`;
@@ -535,7 +526,11 @@ const server = http.createServer(async (req, res) => {
 
   // Config Export Download
   if (pathname === '/api/config/export') {
-    const key = (parsedUrl.searchParams.get('key') || '').trim() || 'CYBER-TEST-1234-5678';
+    const key = (parsedUrl.searchParams.get('key') || '').trim().toUpperCase();
+    const keyRecord = key ? db.findKey(key) : null;
+    if (!keyRecord || keyRecord.status !== 'active' || !keyRecord.expires_at || new Date(keyRecord.expires_at).getTime() <= Date.now()) {
+      return sendJson(res, 403, { ok: false, error: 'a valid generated license key is required' });
+    }
     const configData = buildHappConfig(key);
     res.writeHead(200, {
       'Content-Type': 'application/json',
