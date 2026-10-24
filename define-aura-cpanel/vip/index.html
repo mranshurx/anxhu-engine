@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DEFINE AURA Control Center — Back-End Panel</title>
+  <title>CYBER X SILENT Control Center — Back-End Panel</title>
   <link rel="icon" href="/icon.png" type="image/png" />
   <link rel="stylesheet" href="/src/styles.css" />
   <style>
@@ -253,13 +253,14 @@
     <header class="panel-header">
       <div>
         <div style="display:flex; align-items:center; gap:10px;">
+          <img src="/logo.png" alt="CYBER X SILENT logo" style="width:32px;height:32px;object-fit:contain;" />
           <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#ff2a44" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-skull">
             <path d="m12.5 17-.5-1-.5 1h1z"></path>
             <path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"></path>
             <circle cx="15" cy="12" r="1"></circle>
             <circle cx="9" cy="12" r="1"></circle>
           </svg>
-          <h1 style="margin:0; font-size:18px; font-weight:800; letter-spacing:0.2em; color:#fff;">DEFINE AURA <span style="color:#ff2a44;">BACK-END PANEL</span></h1>
+          <h1 style="margin:0; font-size:18px; font-weight:800; letter-spacing:0.2em; color:#fff;">CYBER X SILENT <span style="color:#ff2a44;">BACK-END PANEL</span></h1>
         </div>
         <p style="margin:4px 0 0 0; font-size:11px; color:#8a8a8e;">Standalone License Engine & Proxy Tunnel Manager</p>
       </div>
@@ -315,7 +316,7 @@
           <form id="gen-key-form">
             <div class="form-group">
               <label class="form-label">Key Prefix</label>
-              <input id="gen-prefix" class="form-control" type="text" value="AURA" maxlength="6" />
+              <input id="gen-prefix" class="form-control" type="text" value="CYBER" maxlength="6" />
             </div>
 
             <div class="form-group">
@@ -376,7 +377,7 @@
 
             <div class="form-group">
               <label class="form-label">Allowed Test Logins / Whitelist</label>
-              <textarea id="maint-allowed" class="form-control" rows="2" placeholder="owner, admin, test, AURA-XXXX..."></textarea>
+              <textarea id="maint-allowed" class="form-control" rows="2" placeholder="owner, admin, test, CYBER-XXXX..."></textarea>
               <span style="font-size:10px; color:#8a8a8e;">Comma-separated keys or usernames allowed to login</span>
             </div>
 
@@ -458,10 +459,11 @@
 
   <div id="login-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.9); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:2000;">
     <div style="background:var(--card-bg); border:1px solid var(--card-border); border-radius:16px; padding:32px; width:min(380px, 90vw); text-align:center;">
-      <div style="font-size:13px; font-weight:800; letter-spacing:0.2em; color:#fff; margin-bottom:6px;"><span style="color:#ff2a44;">DEFINE AURA</span> CONTROL CENTER</div>
+      <img src="/logo.png" alt="CYBER X SILENT logo" style="width:64px;height:64px;object-fit:contain;margin:0 auto 12px;display:block;" />
+      <div style="font-size:13px; font-weight:800; letter-spacing:0.2em; color:#fff; margin-bottom:6px;"><span style="color:#ff2a44;">CYBER X SILENT</span> CONTROL CENTER</div>
       <div style="font-size:11px; color:#8a8a8e; margin-bottom:20px;">enter admin password to continue</div>
       <form id="admin-login-form">
-        <input id="admin-password" type="password" class="form-control" placeholder="admin password" autocomplete="current-password" style="text-align:center;" />
+        <input id="admin-password" type="password" class="form-control" placeholder="CYBER admin key" autocomplete="current-password" style="text-align:center;" />
         <button type="submit" class="btn-admin" style="width:100%; margin-top:12px;">Unlock Panel</button>
       </form>
       <p id="admin-login-error" style="display:none; margin-top:12px; font-size:11px; color:#f87171;">wrong password</p>
