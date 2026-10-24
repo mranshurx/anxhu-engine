@@ -1,212 +1,23 @@
 {
   "maintenance": {
     "enabled": false,
-    "allowed_logins": [
-      "owner",
-      "admin",
-      "test",
-      "AURA-TEST-1234-5678",
-      "PMM-TEST-1234-5678"
-    ],
+    "allowed_logins": [],
     "blocked": false,
     "title": "maintenance",
     "message": "we're doing maintenance. everything is paused until we're back."
   },
   "global_features": {
-    "marker": {
-      "enabled": true,
-      "type": "Define Aura"
-    },
-    "aimLag": {
-      "enabled": false,
-      "onFire": false,
-      "onScope": false
-    },
-    "fastLanding": {
-      "enabled": false,
-      "spot": "Peak"
-    },
-    "fastRevive": {
-      "enabled": false
-    },
-    "gloo": {
-      "enabled": false,
-      "yawDeg": 180
-    },
-    "aimpoint": {
-      "enabled": false
-    }
+    "marker": { "enabled": true, "type": "Cyber x silent" },
+    "aimLag": { "enabled": false, "onFire": false, "onScope": false },
+    "fastLanding": { "enabled": false, "spot": "Peak" },
+    "fastRevive": { "enabled": false },
+    "gloo": { "enabled": false, "yawDeg": 180 },
+    "aimpoint": { "enabled": false }
   },
   "nodes": [
-    {
-      "id": "sg1",
-      "name": "Singapore Node 01",
-      "flag": "🇸🇬",
-      "host": "sg1.nulldash.store",
-      "port": 443,
-      "ping": 24,
-      "status": "online",
-      "users": 48
-    },
-    {
-      "id": "del1",
-      "name": "Delhi Node 02",
-      "flag": "🇮🇳",
-      "host": "del1.nulldash.store",
-      "port": 443,
-      "ping": 38,
-      "status": "online",
-      "users": 29
-    },
-    {
-      "id": "fr1",
-      "name": "France Node 03",
-      "flag": "🇫🇷",
-      "host": "fr1.nulldash.store",
-      "port": 443,
-      "ping": 110,
-      "status": "online",
-      "users": 12
-    }
+    { "id": "sg1", "name": "Singapore Node 01", "flag": "🇸🇬", "host": "sg1.nulldash.store", "port": 443, "ping": 24, "status": "online", "users": 48 },
+    { "id": "del1", "name": "Delhi Node 02", "flag": "🇮🇳", "host": "del1.nulldash.store", "port": 443, "ping": 38, "status": "online", "users": 29 },
+    { "id": "fr1", "name": "France Node 03", "flag": "🇫🇷", "host": "fr1.nulldash.store", "port": 443, "ping": 110, "status": "online", "users": 12 }
   ],
-  "keys": [
-    {
-      "key": "AURA-TEST-1234-5678",
-      "status": "active",
-      "bound_hwid": null,
-      "device_model": null,
-      "created_at": "2026-10-14T00:00:00.000Z",
-      "expires_at": "2026-11-14T00:00:00.000Z",
-      "note": "Pre-activated Testing License",
-      "features": {
-        "marker": {
-          "enabled": true,
-          "type": "Define Aura"
-        },
-        "aimLag": {
-          "enabled": false,
-          "onFire": false,
-          "onScope": false
-        },
-        "fastLanding": {
-          "enabled": false,
-          "spot": "Peak"
-        },
-        "fastRevive": {
-          "enabled": false
-        },
-        "gloo": {
-          "enabled": false,
-          "yawDeg": 180
-        },
-        "aimpoint": {
-          "enabled": false
-        }
-      }
-    },
-    {
-      "key": "PMM-XUPP-B9V7-4YCC",
-      "status": "active",
-      "bound_hwid": null,
-      "device_model": null,
-      "created_at": "2026-10-02T19:24:09.683Z",
-      "expires_at": "2026-11-01T19:24:09.683Z",
-      "note": "Generated from Admin Panel",
-      "features": {
-        "marker": {
-          "enabled": true,
-          "type": "Define Aura"
-        },
-        "aimLag": {
-          "enabled": false,
-          "onFire": false,
-          "onScope": false
-        },
-        "fastLanding": {
-          "enabled": false,
-          "spot": "Peak"
-        },
-        "fastRevive": {
-          "enabled": false
-        },
-        "gloo": {
-          "enabled": false,
-          "yawDeg": 180
-        },
-        "aimpoint": {
-          "enabled": false
-        }
-      }
-    },
-    {
-      "key": "PMM-RZFA-RZF5-Z5AE",
-      "status": "active",
-      "bound_hwid": "PMM-4E92-14C8-14C8",
-      "device_model": "Windows PC",
-      "created_at": "2026-10-02T19:01:43.119Z",
-      "expires_at": "2026-10-09T19:01:43.119Z",
-      "note": "Generated from Admin Panel",
-      "features": {
-        "marker": {
-          "enabled": true,
-          "type": "Phantom"
-        },
-        "aimLag": {
-          "enabled": false,
-          "onFire": false,
-          "onScope": false
-        },
-        "fastLanding": {
-          "enabled": false,
-          "spot": "Peak"
-        },
-        "fastRevive": {
-          "enabled": false
-        },
-        "gloo": {
-          "enabled": false,
-          "yawDeg": 180
-        },
-        "aimpoint": {
-          "enabled": false
-        }
-      },
-      "device_os": "Windows 1011"
-    },
-    {
-      "key": "PMM-W5P5-52P4-WMMQ",
-      "status": "active",
-      "bound_hwid": "PMM-4E92-14C8-14C8",
-      "device_model": "Windows PC (NVIDIA GeForce RTX 5060 Ti (0x00002D04)",
-      "created_at": "2026-10-02T14:26:30.018Z",
-      "expires_at": "2027-10-02T14:26:30.018Z",
-      "note": "Generated from Admin Panel",
-      "features": {
-        "marker": {
-          "enabled": true,
-          "type": "Define Aura"
-        },
-        "aimLag": {
-          "enabled": false,
-          "onFire": false,
-          "onScope": false
-        },
-        "fastLanding": {
-          "enabled": false,
-          "spot": "Peak"
-        },
-        "fastRevive": {
-          "enabled": false
-        },
-        "gloo": {
-          "enabled": false,
-          "yawDeg": 180
-        },
-        "aimpoint": {
-          "enabled": false
-        }
-      },
-      "device_os": "Windows 1011"
-    }
-  ]
+  "keys": []
 }
