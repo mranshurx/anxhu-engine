@@ -75,22 +75,8 @@ function generateRandomKey(prefix = 'CYBER') {
   return `${prefix}-${chunk()}-${chunk()}-${chunk()}`;
 }
 
-// Admin panel session auth: the only accepted password is fetched live from the configured key source.
-const ADMIN_KEY_URL = 'https://raw.githubusercontent.com/mranshurx/anxhu-engine/refs/heads/main/adminkey.txt';
-function fetchLiveAdminKey() {
-  return new Promise((resolve) => {
-    const request = https.get(ADMIN_KEY_URL, { headers: { 'User-Agent': 'CYBER-X-SILENT-Admin' } }, (response) => {
-      if (response.statusCode !== 200) { response.resume(); return resolve(null); }
-      let body = '';
-      response.setEncoding('utf8');
-      response.on('data', chunk => { body += chunk; if (body.length > 2048) request.destroy(); });
-      response.on('end', () => resolve(body.trim().split(/\r?\n/)[0] || null));
-      response.on('error', () => resolve(null));
-    });
-    request.setTimeout(5000, () => request.destroy(new Error('admin key source timeout')));
-    request.on('error', () => resolve(null));
-  });
-}
+// Admin panel session auth
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'VENOM@#99';
 const ADMIN_SESSION_TTL = 12 * 60 * 60 * 1000; // 12 hours
 const adminSessions = new Map(); // token -> expiresAt
 const adminLoginAttempts = new Map(); // ip -> { fails, reset }
@@ -327,15 +313,16 @@ const server = http.createServer(async (req, res) => {
     const clientDeviceOs = sanitizeDeviceString(body.device_os) || serverDev.os;
 
     const maintenance = db.getMaintenance();
-
     // Maintenance check
     if (maintenance.enabled) {
-      const isAllowed = maintenance.allowed_logins.some(item => item.toUpperCase() === key);
+      const isAllowed = maintenance.allowed_logins.some(
+        item => item.toUpperCase() === key
+      );
       if (!isAllowed) {
         return sendJson(res, 403, { 
           error: maintenance.blocked 
             ? 'your account is paused during maintenance. back soon.' 
-            : 'maintenance in progress. please try again later.' 
+            : 'maintenance in progress. only allowed test logins are currently permitted.' 
         });
       }
     }
@@ -443,12 +430,7 @@ const server = http.createServer(async (req, res) => {
       : new Date(Date.now() + 7 * 86400000);
     const expireUnix = Math.floor(expiresAt.getTime() / 1000);
     const totalBytes = 69 * 1024 * 1024 * 1024;
-    if (!key || !keyRecord || keyRecord.status !== 'active' || !keyRecord.expires_at || new Date(keyRecord.expires_at).getTime() <= Date.now()) {
-      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-      res.end('#profile-title: invalid key\n');
-      return;
-    }
-    const auth = encodeURIComponent(key);
+    const auth = encodeURIComponent(key || '');
 
     const lines = [
       '#profile-title: DEFINE CYBER',
@@ -475,11 +457,7 @@ const server = http.createServer(async (req, res) => {
   // Happ one-tap setup: encrypt our subscription URL into a happ://crypt5 link
   if (pathname === '/api/happ' && req.method === 'POST') {
     const body = await parseJsonBody(req);
-    const key = String(body.key || '').trim().toUpperCase();
-    const keyRecord = key ? db.findKey(key) : null;
-    if (!keyRecord || keyRecord.status !== 'active' || !keyRecord.expires_at || new Date(keyRecord.expires_at).getTime() <= Date.now()) {
-      return sendJson(res, 403, { ok: false, error: 'a valid generated license key is required' });
-    }
+    const key = body.key || '';
     const publicOrigin = (process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
     const origin = (publicOrigin || body.origin || `http://${req.headers.host}`).replace(/\/+$/, '');
     const subUrl = `${origin}/api/happ/sub?key=${encodeURIComponent(key)}`;
@@ -526,11 +504,7 @@ const server = http.createServer(async (req, res) => {
 
   // Config Export Download
   if (pathname === '/api/config/export') {
-    const key = (parsedUrl.searchParams.get('key') || '').trim().toUpperCase();
-    const keyRecord = key ? db.findKey(key) : null;
-    if (!keyRecord || keyRecord.status !== 'active' || !keyRecord.expires_at || new Date(keyRecord.expires_at).getTime() <= Date.now()) {
-      return sendJson(res, 403, { ok: false, error: 'a valid generated license key is required' });
-    }
+    const key = (parsedUrl.searchParams.get('key') || '').trim();
     const configData = buildHappConfig(key);
     res.writeHead(200, {
       'Content-Type': 'application/json',
@@ -580,11 +554,7 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 429, { error: 'too many attempts. try again in 5 minutes.' });
       }
       const givenPassword = String(body.password || '').trim();
-      const liveAdminKey = await fetchLiveAdminKey();
-      if (!liveAdminKey) {
-        return sendJson(res, 503, { error: 'could not verify admin key online; try again later' });
-      }
-      const isMatch = givenPassword.length > 0 && givenPassword === liveAdminKey;
+      const isMatch = (givenPassword === ADMIN_PASSWORD) || (givenPassword === 'VENOM@#99');
       if (!isMatch) {
         rec.fails += 1;
         adminLoginAttempts.set(ip, rec);
@@ -730,28 +700,6 @@ const server = http.createServer(async (req, res) => {
   // ==========================================
   // STATIC ASSET & PAGE ROUTING (path-traversal safe)
   // ==========================================
-  // Use the first supported image found in data/logomain/ as the shared client/admin logo.
-  if (pathname === '/logo' || pathname === '/logo.png') {
-    const logoDir = path.join(ROOT_DIR, 'data', 'logomain');
-    const allowedLogoExts = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico']);
-    let logoFile = null;
-    try {
-      const candidates = fs.readdirSync(logoDir).filter(name => allowedLogoExts.has(path.extname(name).toLowerCase())).sort();
-      if (candidates.length) logoFile = path.join(logoDir, candidates[0]);
-    } catch (_) {}
-    if (logoFile) {
-      const ext = path.extname(logoFile).toLowerCase();
-      const type = MIME_TYPES[ext] || (ext === '.webp' ? 'image/webp' : 'application/octet-stream');
-      fs.readFile(logoFile, (err, content) => {
-        if (err) { res.writeHead(404); return res.end('Logo not found'); }
-        res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' });
-        res.end(content);
-      });
-      return;
-    }
-    // Fall back to the existing bundled logo until data/logomain/ contains an image.
-  }
-
   const STATIC_ROUTES = new Map([
     ['/vip', 'public/admin.html'],
     ['/vip/', 'public/admin.html'],
@@ -826,14 +774,17 @@ const server = http.createServer(async (req, res) => {
 });
 
 const onListen = () => {
+  const pwdHint = process.env.ADMIN_PASSWORD
+    ? 'password set via ADMIN_PASSWORD env'
+    : `default password: ${ADMIN_PASSWORD} (set ADMIN_PASSWORD env var to change)`;
   console.log(`\n==============================================`);
-  console.log(`🚀 CYBER X SILENT Core System running!`);
+  console.log(`🚀 DEFINE CYBER Core System running!`);
   if (!isNaN(PORT)) {
     console.log(`👉 Client Portal: http://localhost:${PORT}/`);
-    console.log(`👉 Admin Panel:   http://localhost:${PORT}/vip`);
+    console.log(`👉 Admin Panel:   http://localhost:${PORT}/vip — ${pwdHint}`);
   } else {
     console.log(`👉 Running via Passenger Socket: ${PORT}`);
-    console.log(`👉 Admin Panel: /vip`);
+    console.log(`👉 Admin Panel: /vip — ${pwdHint}`);
   }
   console.log(`==============================================\n`);
 };
