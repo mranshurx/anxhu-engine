@@ -582,14 +582,14 @@ function renderManageTab() {
         </div>
       </button>
 
-      <!-- WhatsApp community -->
-      <a href="${CONFIG.SOCIAL_WHATSAPP_URL}" target="_blank" rel="noopener noreferrer" class="w-full text-left">
+      <!-- Telegram community -->
+      <a href="${CONFIG.SOCIAL_TELEGRAM_URL}" target="_blank" rel="noopener noreferrer" class="w-full text-left">
         <div class="card flex items-center justify-between p-4 transition-colors hover:border-foreground/30">
           <div class="flex items-center gap-3">
             <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-dim">
-              ${Icons.whatsapp(16)}
+              ${Icons.telegram(16)}
             </div>
-            <span class="text-sm text-foreground">${t('whatsapp')}</span>
+            <span class="text-sm text-foreground">${t('telegram')}</span>
           </div>
           ${Icons.chevronRight(16, 'shrink-0 text-line-2')}
         </div>
