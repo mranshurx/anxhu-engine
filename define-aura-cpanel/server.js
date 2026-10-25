@@ -21,6 +21,13 @@ const PORT = process.env.PORT || 15493;
 const ROOT_DIR = __dirname;
 
 // ---------------------------------------------------------------------------
+// HARDCODED PUBLIC ORIGIN
+// HAPP runs on the phone, so it must be able to reach the subscription URL.
+// Set this to your real public domain. Change it if the domain changes.
+// ---------------------------------------------------------------------------
+const PUBLIC_ORIGIN = 'https://client.nulldash.store';
+
+// ---------------------------------------------------------------------------
 // CLIENT KEYS: no hardcoded key anymore. Only keys created from the admin
 // panel (stored in data/database.json) can log in. Unbound keys work on any
 // device; only a key with an explicit bound_hwid is device-locked.
@@ -677,7 +684,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/happ' && req.method === 'POST') {
     const body = await parseJsonBody(req);
     const key = body.key || 'CYBER-TEST-1234-5678';
-    const publicOrigin = (process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
+    const publicOrigin = (process.env.PUBLIC_ORIGIN || PUBLIC_ORIGIN).replace(/\/+$/, '');
     const origin = (publicOrigin || body.origin || `http://${req.headers.host}`).replace(/\/+$/, '');
     const subUrl = `${origin}/api/happ/sub?key=${encodeURIComponent(key)}`;
 
@@ -1020,6 +1027,7 @@ const onListen = () => {
   console.log(`\n==============================================`);
   console.log(`🚀 DEFINE CYBER Core System running!`);
   console.log(`🔑 Admin password = contents of adminkey.txt on GitHub`);
+  console.log(`🌐 Public origin  = ${PUBLIC_ORIGIN}`);
   if (process.env.ADMIN_PASSWORD) console.log(`   (ADMIN_PASSWORD env override is set)`);
   if (!isNaN(PORT)) {
     console.log(`👉 Client Portal: http://localhost:${PORT}/`);
