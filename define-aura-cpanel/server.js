@@ -7,37 +7,36 @@ const db = require('./data/db');
 const interceptor = require('./src/engine/packet_interceptor');
 const gameTunnel = require('./src/engine/game_tunnel');
 
-// Start active UDP game tunnel (non-fatal: hosting without UDP still boots the portal)
-try {
-  gameTunnel.start();
-} catch (e) {
-  console.error('[tunnel] UDP tunnel failed to start:', e.message);
-}
-
-// Initialize interceptor with saved features
+try { gameTunnel.start(); } catch (e) { console.error('[tunnel] UDP tunnel failed to start:', e.message); }
 interceptor.setFeatures(db.get().global_features);
 
 const PORT = process.env.PORT || 15493;
 const ROOT_DIR = __dirname;
 
 // ---------------------------------------------------------------------------
-// HARDCODED PUBLIC ORIGIN — must be reachable by the phone running HAPP.
+// PUBLIC ORIGIN — must be reachable by the phone running HAPP.
 // ---------------------------------------------------------------------------
 const PUBLIC_ORIGIN = 'https://client.nulldash.store';
 
 // ---------------------------------------------------------------------------
-// HAPP PROXY TARGET — edit these to your own node.
-//   HAPP_PROXY_STATIC_AUTH = null  -> auth becomes the user's license key (per-user)
-//   HAPP_PROXY_STATIC_AUTH = '...' -> every profile shares this fixed token
+// HAPP IMPORT — uses your working relay so HAPP never times out.
+//   HAPP_IMPORT_MODE = 'own'    -> relay -> our /api/happ/sub (key config + key expiry timer)
+//   HAPP_IMPORT_MODE = 'static' -> relay -> a fixed external subscription
+// ---------------------------------------------------------------------------
+const HAPP_RELAY_BASE = 'https://hwid-relayv2.mr-anshu-rx.workers.dev/hX7kQ2mV/s/';
+const HAPP_IMPORT_MODE = 'own';
+const HAPP_STATIC_SUB = 'https://client.xreg.site/sub/XREG-E472-1EF2-8D79';
+
+// ---------------------------------------------------------------------------
+// HAPP PROXY TARGET (the outbound inside the imported config)
+//   HAPP_PROXY_STATIC_AUTH = null  -> auth = the user's license key
+//   HAPP_PROXY_STATIC_AUTH = '...' -> shared fixed token
 // ---------------------------------------------------------------------------
 const HAPP_PROXY_HOST = 'wraith-bom.xreg.site';
 const HAPP_PROXY_PORT = 443;
 const HAPP_PROXY_STATIC_AUTH = 'XREG-E472-1EF2-8D79.1792907117.3f42b5c809eb5c1b68dad8c1a878b98d';
 const HAPP_REMARKS_PREFIX = 'CYBER';
 
-// ---------------------------------------------------------------------------
-// CLIENT KEYS
-// ---------------------------------------------------------------------------
 const LEGACY_HARDCODED_KEY = 'CYBER-ANXHU-COLLAB-AMIT';
 if (db.findKey(LEGACY_HARDCODED_KEY)) {
   db.deleteKey(LEGACY_HARDCODED_KEY);
@@ -62,11 +61,8 @@ const sseClients = new Set();
 
 function broadcastEvent(eventName, data) {
   for (const client of sseClients) {
-    try {
-      client.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
-    } catch (e) {
-      sseClients.delete(client);
-    }
+    try { client.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`); }
+    catch (e) { sseClients.delete(client); }
   }
 }
 
@@ -83,11 +79,7 @@ function parseJsonBody(req) {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
-      try {
-        resolve(JSON.parse(body || '{}'));
-      } catch (e) {
-        resolve({});
-      }
+      try { resolve(JSON.parse(body || '{}')); } catch (e) { resolve({}); }
     });
   });
 }
@@ -115,10 +107,7 @@ function fetchRemoteAdminKey() {
       timeout: 6000,
       headers: { 'User-Agent': 'cyber-x-silent', 'Cache-Control': 'no-cache' }
     }, (res) => {
-      if (res.statusCode !== 200) {
-        res.resume();
-        return resolve(null);
-      }
+      if (res.statusCode !== 200) { res.resume(); return resolve(null); }
       let data = '';
       res.on('data', (c) => { data += c; });
       res.on('end', () => resolve(data.trim()));
@@ -130,14 +119,9 @@ function fetchRemoteAdminKey() {
 
 async function getAdminKey() {
   const now = Date.now();
-  if (adminKeyCache.value && (now - adminKeyCache.fetchedAt) < ADMIN_KEY_TTL) {
-    return adminKeyCache.value;
-  }
+  if (adminKeyCache.value && (now - adminKeyCache.fetchedAt) < ADMIN_KEY_TTL) return adminKeyCache.value;
   const remote = await fetchRemoteAdminKey();
-  if (remote) {
-    adminKeyCache = { value: remote, fetchedAt: now };
-    return remote;
-  }
+  if (remote) { adminKeyCache = { value: remote, fetchedAt: now }; return remote; }
   return adminKeyCache.value;
 }
 
@@ -150,10 +134,7 @@ function isAdminAuthed(req) {
   if (!m) return false;
   const expiresAt = adminSessions.get(m[1]);
   if (!expiresAt) return false;
-  if (Date.now() > expiresAt) {
-    adminSessions.delete(m[1]);
-    return false;
-  }
+  if (Date.now() > expiresAt) { adminSessions.delete(m[1]); return false; }
   return true;
 }
 
@@ -166,11 +147,8 @@ function deepMerge(base, extra) {
   for (const k of Object.keys(extra)) {
     const b = base[k];
     const e = extra[k];
-    if (b && e && typeof b === 'object' && typeof e === 'object' && !Array.isArray(b) && !Array.isArray(e)) {
-      out[k] = deepMerge(b, e);
-    } else {
-      out[k] = e;
-    }
+    if (b && e && typeof b === 'object' && typeof e === 'object' && !Array.isArray(b) && !Array.isArray(e)) out[k] = deepMerge(b, e);
+    else out[k] = e;
   }
   return out;
 }
@@ -178,22 +156,18 @@ function deepMerge(base, extra) {
 function detectServerDevice(ua = '') {
   let os = 'Unknown OS';
   let model = 'Unknown Device';
-
   if (/Windows NT 10.0/i.test(ua)) { os = 'Windows 10/11 64-bit'; model = 'Windows PC'; }
   else if (/Windows NT 6.3/i.test(ua)) { os = 'Windows 8.1'; model = 'Windows PC'; }
   else if (/Windows NT 6.1/i.test(ua)) { os = 'Windows 7'; model = 'Windows PC'; }
   else if (/iPhone/i.test(ua)) {
     const v = ua.match(/OS (\d+[_\.]\d+)/);
-    os = v ? `iOS ${v[1].replace('_', '.')}` : 'iOS';
-    model = `iPhone (${os})`;
+    os = v ? `iOS ${v[1].replace('_', '.')}` : 'iOS'; model = `iPhone (${os})`;
   } else if (/iPad/i.test(ua)) {
     const v = ua.match(/OS (\d+[_\.]\d+)/);
-    os = v ? `iPadOS ${v[1].replace('_', '.')}` : 'iPadOS';
-    model = `iPad (${os})`;
+    os = v ? `iPadOS ${v[1].replace('_', '.')}` : 'iPadOS'; model = `iPad (${os})`;
   } else if (/Macintosh|Mac OS X/i.test(ua)) {
     const v = ua.match(/Mac OS X (\d+[_\.]\d+)/);
-    os = v ? `macOS ${v[1].replace('_', '.')}` : 'macOS';
-    model = `Mac (${os})`;
+    os = v ? `macOS ${v[1].replace('_', '.')}` : 'macOS'; model = `Mac (${os})`;
   } else if (/Android/i.test(ua)) {
     const v = ua.match(/Android (\d+(\.\d+)?)/);
     os = v ? `Android ${v[1]}` : 'Android';
@@ -208,14 +182,11 @@ function detectServerDevice(ua = '') {
   else if (/Firefox\//i.test(ua)) browser = 'Firefox';
 
   if (model === 'Windows PC' || model === 'Linux Desktop') model = `${model} (${browser})`;
-
   return { os, model };
 }
 
 // ---------------------------------------------------------------------------
-// FULL XRAY PROFILE — imported into HAPP on "Add to HAPP".
-// Matches the working routing exactly. Only remarks + auth + host are dynamic.
-// The expiry travels in the subscription-userinfo header (see /api/happ/sub).
+// FULL XRAY PROFILE (imported into HAPP)
 // ---------------------------------------------------------------------------
 const HAPP_ROUTING_RULES = [
   {
@@ -341,15 +312,11 @@ function buildFullHappConfig(key) {
   return [{
     remarks: `${HAPP_REMARKS_PREFIX}-${chunk}`,
     inbounds: [
-      {
-        tag: 'socks', listen: '127.0.0.1', port: 10808, protocol: 'socks',
+      { tag: 'socks', listen: '127.0.0.1', port: 10808, protocol: 'socks',
         settings: { auth: 'noauth', udp: true },
-        sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'], routeOnly: false }
-      },
-      {
-        tag: 'http', listen: '127.0.0.1', port: 10809, protocol: 'http',
-        sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'], routeOnly: false }
-      }
+        sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'], routeOnly: false } },
+      { tag: 'http', listen: '127.0.0.1', port: 10809, protocol: 'http',
+        sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'], routeOnly: false } }
     ],
     outbounds: [
       {
@@ -375,35 +342,6 @@ function buildFullHappConfig(key) {
   }];
 }
 
-// Wrap a subscription URL into an encrypted HAPP one-tap link (happ://crypt5/...)
-function fetchHappCryptoLink(subUrl) {
-  return new Promise((resolve, reject) => {
-    const payload = JSON.stringify({ url: subUrl });
-    const r = https.request('https://crypto.happ.su/api-v2.php', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      },
-      timeout: 6000
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => { data += c; });
-      res.on('end', () => {
-        try {
-          const j = JSON.parse(data);
-          if (j.encrypted_link) resolve(j.encrypted_link);
-          else reject(new Error((j && j.msg) || 'no encrypted link returned'));
-        } catch (e) { reject(e); }
-      });
-    });
-    r.on('timeout', () => r.destroy(new Error('crypto api timeout')));
-    r.on('error', reject);
-    r.write(payload);
-    r.end();
-  });
-}
-
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname;
@@ -412,25 +350,16 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // ==========================================
-  // CLIENT API
-  // ==========================================
+  // ================= CLIENT API =================
 
-  if (pathname === '/api/maintenance' && req.method === 'GET') {
-    return sendJson(res, 200, db.getMaintenance());
-  }
+  if (pathname === '/api/maintenance' && req.method === 'GET') return sendJson(res, 200, db.getMaintenance());
 
   if (pathname === '/api/redeem' && req.method === 'POST') {
     const body = await parseJsonBody(req);
     const rawKey = (body.key || '').trim();
     const key = rawKey.toUpperCase();
-
     if (!rawKey) return sendJson(res, 400, { error: 'enter your full key' });
 
     const ua = req.headers['user-agent'] || '';
@@ -458,10 +387,8 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, {
         ok: true,
         me: {
-          status: 'active',
-          bound_hwid: clientHwid,
-          device_model: clientDeviceModel,
-          device_os: clientDeviceOs,
+          status: 'active', bound_hwid: clientHwid,
+          device_model: clientDeviceModel, device_os: clientDeviceOs,
           expires_at: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
           features: db.get().global_features
         }
@@ -475,9 +402,7 @@ const server = http.createServer(async (req, res) => {
 
     if (keyRecord.bound_hwid) {
       if (keyRecord.bound_hwid !== clientHwid) {
-        return sendJson(res, 403, {
-          error: `key is locked to another device (${keyRecord.device_model || 'other device'}). reset device lock from the site first.`
-        });
+        return sendJson(res, 403, { error: `key is locked to another device (${keyRecord.device_model || 'other device'}). reset device lock from the site first.` });
       }
       if (clientDeviceModel && clientDeviceModel !== 'Unknown Device' && clientDeviceModel !== keyRecord.device_model) {
         keyRecord.device_model = clientDeviceModel;
@@ -495,8 +420,7 @@ const server = http.createServer(async (req, res) => {
         device_os: keyRecord.device_os,
         expires_at: keyRecord.expires_at,
         features: keyRecord.features && Object.keys(keyRecord.features).length > 0
-          ? keyRecord.features
-          : db.get().global_features
+          ? keyRecord.features : db.get().global_features
       }
     });
   }
@@ -516,11 +440,9 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  if (pathname === '/api/engine/tunnel-stats' && req.method === 'GET') {
-    return sendJson(res, 200, gameTunnel.getStats());
-  }
+  if (pathname === '/api/engine/tunnel-stats' && req.method === 'GET') return sendJson(res, 200, gameTunnel.getStats());
 
-  // HAPP SUBSCRIPTION — serves the profile + the EXPIRE header (the timer)
+  // HAPP SUBSCRIPTION — profile + EXPIRE header (the timer)
   if (pathname === '/api/happ/sub' && req.method === 'GET') {
     const key = (parsedUrl.searchParams.get('key') || '').trim();
     const keyRecord = key ? db.findKey(key) : null;
@@ -550,7 +472,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // HAPP ONE-TAP — crypt5 link wrapping the key-scoped subscription above
+  // HAPP IMPORT — returns a relay-wrapped URL (no crypt5, no timeouts)
   if (pathname === '/api/happ' && req.method === 'POST') {
     const body = await parseJsonBody(req);
     const key = body.key || 'CYBER-TEST-1234-5678';
@@ -558,21 +480,14 @@ const server = http.createServer(async (req, res) => {
     const origin = (publicOrigin || body.origin || `http://${req.headers.host}`).replace(/\/+$/, '');
     const subUrl = `${origin}/api/happ/sub?key=${encodeURIComponent(key)}`;
 
-    let deepLink = null;
-    let cryptoError = null;
-    try {
-      deepLink = await fetchHappCryptoLink(subUrl);
-    } catch (e) {
-      cryptoError = e.message;
-    }
+    const target = HAPP_IMPORT_MODE === 'static' ? HAPP_STATIC_SUB : subUrl;
+    const importUrl = HAPP_RELAY_BASE + target;
 
     const keyRecord = db.findKey(key);
     return sendJson(res, 200, {
       ok: true,
-      href: 'https://apps.apple.com/us/app/happ-proxy-utility/id6504287215',
-      subUrl: subUrl,
-      deepLink: deepLink,
-      cryptoError: cryptoError,
+      importUrl,
+      subUrl,
       expires_at: (keyRecord && keyRecord.expires_at) || null,
       config: buildFullHappConfig(key)
     });
@@ -593,17 +508,12 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/config/export') {
     const key = (parsedUrl.searchParams.get('key') || '').trim() || 'CYBER-TEST-1234-5678';
     const configData = buildFullHappConfig(key);
-    res.writeHead(200, {
-      'Content-Type': 'application/json',
-      'Content-Disposition': 'attachment; filename="aura-happ-config.json"'
-    });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="aura-happ-config.json"' });
     res.end(JSON.stringify(configData, null, 2));
     return;
   }
 
-  if (pathname === '/api/logout' && req.method === 'POST') {
-    return sendJson(res, 200, { ok: true });
-  }
+  if (pathname === '/api/logout' && req.method === 'POST') return sendJson(res, 200, { ok: true });
 
   if (pathname === '/api/events') {
     res.writeHead(200, {
@@ -618,9 +528,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ==========================================
-  // ADMIN API
-  // ==========================================
+  // ================= ADMIN API =================
   if (pathname.startsWith('/api/admin/')) {
     if (pathname === '/api/admin/login' && req.method === 'POST') {
       const body = await parseJsonBody(req);
@@ -637,7 +545,6 @@ const server = http.createServer(async (req, res) => {
         const expected = await getAdminKey();
         if (expected) { remoteOk = true; isMatch = givenPassword === expected; }
       } catch (e) {}
-
       if (!isMatch && process.env.ADMIN_PASSWORD && givenPassword === process.env.ADMIN_PASSWORD) isMatch = true;
 
       if (!isMatch) {
@@ -663,19 +570,19 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/api/admin/overview' && req.method === 'GET') {
     const data = db.get();
-    const totalKeys = data.keys.length;
-    const activeKeys = data.keys.filter(k => k.status === 'active' && new Date(k.expires_at) > Date.now()).length;
-    const unboundKeys = data.keys.filter(k => !k.bound_hwid).length;
-    const expiredKeys = data.keys.filter(k => new Date(k.expires_at) <= Date.now()).length;
-    const revokedKeys = data.keys.filter(k => k.status === 'revoked').length;
-    const totalUsers = data.nodes.reduce((acc, n) => acc + (n.users || 0), 0);
-
-    return sendJson(res, 200, { totalKeys, activeKeys, unboundKeys, expiredKeys, revokedKeys, totalUsers, maintenance: data.maintenance, nodes: data.nodes });
+    return sendJson(res, 200, {
+      totalKeys: data.keys.length,
+      activeKeys: data.keys.filter(k => k.status === 'active' && new Date(k.expires_at) > Date.now()).length,
+      unboundKeys: data.keys.filter(k => !k.bound_hwid).length,
+      expiredKeys: data.keys.filter(k => new Date(k.expires_at) <= Date.now()).length,
+      revokedKeys: data.keys.filter(k => k.status === 'revoked').length,
+      totalUsers: data.nodes.reduce((acc, n) => acc + (n.users || 0), 0),
+      maintenance: data.maintenance,
+      nodes: data.nodes
+    });
   }
 
-  if (pathname === '/api/admin/keys' && req.method === 'GET') {
-    return sendJson(res, 200, { keys: db.get().keys });
-  }
+  if (pathname === '/api/admin/keys' && req.method === 'GET') return sendJson(res, 200, { keys: db.get().keys });
 
   if (pathname === '/api/admin/keys/generate' && req.method === 'POST') {
     const body = await parseJsonBody(req);
@@ -756,9 +663,7 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true, maintenance: updated.maintenance });
   }
 
-  // ==========================================
-  // STATIC
-  // ==========================================
+  // ================= STATIC =================
   const STATIC_ROUTES = new Map([
     ['/vip', 'public/admin.html'],
     ['/vip/', 'public/admin.html'],
@@ -784,15 +689,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   let filePath = null;
-  if (STATIC_ROUTES.has(pathname)) {
-    filePath = path.join(ROOT_DIR, STATIC_ROUTES.get(pathname));
-  } else if (pathname.startsWith('/src/')) {
-    filePath = path.join(ROOT_DIR, pathname.slice(1));
-  } else if (pathname.startsWith('/media/')) {
-    filePath = path.join(ROOT_DIR, 'public', pathname.slice(1));
-  } else if (pathname.startsWith('/public/')) {
-    filePath = path.join(ROOT_DIR, pathname.slice(1));
-  }
+  if (STATIC_ROUTES.has(pathname)) filePath = path.join(ROOT_DIR, STATIC_ROUTES.get(pathname));
+  else if (pathname.startsWith('/src/')) filePath = path.join(ROOT_DIR, pathname.slice(1));
+  else if (pathname.startsWith('/media/')) filePath = path.join(ROOT_DIR, 'public', pathname.slice(1));
+  else if (pathname.startsWith('/public/')) filePath = path.join(ROOT_DIR, pathname.slice(1));
 
   if (filePath) {
     const resolved = path.resolve(filePath);
@@ -802,11 +702,7 @@ const server = http.createServer(async (req, res) => {
     if (!isInAllowedDir && !isIndexHtml) filePath = null;
   }
 
-  if (!filePath) {
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.end('404 Not Found');
-    return;
-  }
+  if (!filePath) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('404 Not Found'); return; }
 
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
@@ -825,16 +721,10 @@ const server = http.createServer(async (req, res) => {
 const onListen = () => {
   console.log(`\n==============================================`);
   console.log(`🚀 DEFINE CYBER Core System running!`);
-  console.log(`🔑 Admin password = contents of adminkey.txt on GitHub`);
+  console.log(`🔑 Admin password = adminkey.txt on GitHub`);
   console.log(`🌐 Public origin  = ${PUBLIC_ORIGIN}`);
+  console.log(`📡 HAPP import   = ${HAPP_IMPORT_MODE} via relay`);
   console.log(`📡 HAPP proxy    = ${HAPP_PROXY_HOST}:${HAPP_PROXY_PORT}`);
-  if (!isNaN(PORT)) {
-    console.log(`👉 Client Portal: http://localhost:${PORT}/`);
-    console.log(`👉 Admin Panel:   http://localhost:${PORT}/vip`);
-  } else {
-    console.log(`👉 Running via Passenger Socket: ${PORT}`);
-    console.log(`👉 Admin Panel: /vip`);
-  }
   console.log(`==============================================\n`);
 };
 
