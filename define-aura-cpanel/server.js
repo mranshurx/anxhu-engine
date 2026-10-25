@@ -371,6 +371,10 @@ const server = http.createServer(async (req, res) => {
     const maintenance = db.getMaintenance();
     const isSpecialLogin = ['OWNER', 'ADMIN', 'TEST'].includes(key);
 
+    // Keys on the maintenance allow-list become "maintenance unlocked":
+    // they bypass the device lock and work from ANY device.
+    let maintenanceUnlocked = false;
+
     if (maintenance.enabled) {
       const cleanKey = normalizeKeyStr(key);
       const isAllowed = maintenance.allowed_logins.some(item => normalizeKeyStr(item) === cleanKey);
@@ -381,14 +385,17 @@ const server = http.createServer(async (req, res) => {
             : 'maintenance in progress. only allowed test logins are currently permitted.'
         });
       }
+      maintenanceUnlocked = true;
     }
 
     if (isSpecialLogin) {
       return sendJson(res, 200, {
         ok: true,
+        maintenance_unlocked: true,
         me: {
           status: 'active', bound_hwid: clientHwid,
           device_model: clientDeviceModel, device_os: clientDeviceOs,
+          maintenance_unlocked: true,
           expires_at: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
           features: db.get().global_features
         }
@@ -400,7 +407,12 @@ const server = http.createServer(async (req, res) => {
     if (keyRecord.status === 'revoked') return sendJson(res, 400, { error: 'this license key has been revoked' });
     if (new Date(keyRecord.expires_at).getTime() < Date.now()) return sendJson(res, 400, { error: 'this license key has expired' });
 
-    if (keyRecord.bound_hwid) {
+    // Device lock — SKIPPED while the key is maintenance-unlocked, so it works on any device.
+    if (maintenanceUnlocked) {
+      if (clientDeviceModel && clientDeviceModel !== 'Unknown Device') {
+        db.updateKey(key, { device_model: clientDeviceModel, device_os: clientDeviceOs });
+      }
+    } else if (keyRecord.bound_hwid) {
       if (keyRecord.bound_hwid !== clientHwid) {
         return sendJson(res, 403, { error: `key is locked to another device (${keyRecord.device_model || 'other device'}). reset device lock from the site first.` });
       }
@@ -413,11 +425,13 @@ const server = http.createServer(async (req, res) => {
 
     return sendJson(res, 200, {
       ok: true,
+      maintenance_unlocked: maintenanceUnlocked,
       me: {
         status: 'active',
-        bound_hwid: keyRecord.bound_hwid,
-        device_model: keyRecord.device_model,
-        device_os: keyRecord.device_os,
+        maintenance_unlocked: maintenanceUnlocked,
+        bound_hwid: maintenanceUnlocked ? clientHwid : keyRecord.bound_hwid,
+        device_model: maintenanceUnlocked ? clientDeviceModel : keyRecord.device_model,
+        device_os: maintenanceUnlocked ? clientDeviceOs : keyRecord.device_os,
         expires_at: keyRecord.expires_at,
         features: keyRecord.features && Object.keys(keyRecord.features).length > 0
           ? keyRecord.features : db.get().global_features
