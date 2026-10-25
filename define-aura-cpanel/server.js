@@ -20,22 +20,16 @@ interceptor.setFeatures(db.get().global_features);
 const PORT = process.env.PORT || 15493;
 const ROOT_DIR = __dirname;
 
-// Permanent client access key: intentionally unbound so it works across devices.
-const HARDCODED_CLIENT_KEY = 'CYBER-ANXHU-COLLAB-AMIT';
-
-// Ensure the fixed client key exists in the persistent database for all existing API routes.
-if (!db.findKey(HARDCODED_CLIENT_KEY)) {
-  db.addKey({
-    key: HARDCODED_CLIENT_KEY,
-    status: 'active',
-    bound_hwid: null,
-    device_model: null,
-    device_os: null,
-    created_at: new Date().toISOString(),
-    expires_at: '2099-12-31T23:59:59.000Z',
-    note: 'Hardcoded cross-device client key',
-    features: {}
-  });
+// ---------------------------------------------------------------------------
+// CLIENT KEYS: no hardcoded key anymore. Only keys created from the admin
+// panel (stored in data/database.json) can log in. Unbound keys work on any
+// device; only a key with an explicit bound_hwid is device-locked.
+// ---------------------------------------------------------------------------
+// Legacy key that used to be injected on every boot — remove it from existing DBs.
+const LEGACY_HARDCODED_KEY = 'CYBER-ANXHU-COLLAB-AMIT';
+if (db.findKey(LEGACY_HARDCODED_KEY)) {
+  db.deleteKey(LEGACY_HARDCODED_KEY);
+  console.log(`[keys] Removed legacy hardcoded client key (${LEGACY_HARDCODED_KEY})`);
 }
 
 const MIME_TYPES = {
@@ -93,8 +87,54 @@ function generateRandomKey(prefix = 'CYBER') {
   return `${prefix}-${chunk()}-${chunk()}-${chunk()}`;
 }
 
-// Admin panel session auth
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'VENOM@#99';
+function normalizeKeyStr(s) {
+  return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+// ---------------------------------------------------------------------------
+// ADMIN AUTH: password is no longer hardcoded. It is fetched ONLINE from
+// adminkey.txt in the GitHub repo and compared on each login. The result is
+// cached briefly to avoid hammering GitHub; if GitHub is unreachable the last
+// good value is reused, and an optional ADMIN_PASSWORD env var still works as
+// an override.
+// ---------------------------------------------------------------------------
+const ADMIN_KEY_URL = 'https://raw.githubusercontent.com/mranshurx/anxhu-engine/refs/heads/main/adminkey.txt';
+const ADMIN_KEY_TTL = 60 * 1000; // cache remote admin key for 60s
+let adminKeyCache = { value: null, fetchedAt: 0 };
+
+function fetchRemoteAdminKey() {
+  return new Promise((resolve) => {
+    const req = https.get(ADMIN_KEY_URL, {
+      timeout: 6000,
+      headers: { 'User-Agent': 'cyber-x-silent', 'Cache-Control': 'no-cache' }
+    }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return resolve(null);
+      }
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => resolve(data.trim()));
+    });
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.on('error', () => resolve(null));
+  });
+}
+
+async function getAdminKey() {
+  const now = Date.now();
+  if (adminKeyCache.value && (now - adminKeyCache.fetchedAt) < ADMIN_KEY_TTL) {
+    return adminKeyCache.value;
+  }
+  const remote = await fetchRemoteAdminKey();
+  if (remote) {
+    adminKeyCache = { value: remote, fetchedAt: now };
+    return remote;
+  }
+  // GitHub unreachable — fall back to the last known good value (may be null).
+  return adminKeyCache.value;
+}
+
 const ADMIN_SESSION_TTL = 12 * 60 * 60 * 1000; // 12 hours
 const adminSessions = new Map(); // token -> expiresAt
 const adminLoginAttempts = new Map(); // ip -> { fails, reset }
@@ -335,14 +375,15 @@ const server = http.createServer(async (req, res) => {
 
     // Maintenance check
     if (maintenance.enabled) {
+      const cleanKey = normalizeKeyStr(key);
       const isAllowed = maintenance.allowed_logins.some(
-        item => item.toUpperCase() === key || (isSpecialLogin && item.toUpperCase() === key) || key.replace(/[^A-Z0-9]/g, '') === HARDCODED_CLIENT_KEY.replace(/[^A-Z0-9]/g, '')
+        item => normalizeKeyStr(item) === cleanKey
       );
       if (!isAllowed) {
-        return sendJson(res, 403, { 
-          error: maintenance.blocked 
-            ? 'your account is paused during maintenance. back soon.' 
-            : 'maintenance in progress. only allowed test logins are currently permitted.' 
+        return sendJson(res, 403, {
+          error: maintenance.blocked
+            ? 'your account is paused during maintenance. back soon.'
+            : 'maintenance in progress. only allowed test logins are currently permitted.'
         });
       }
     }
@@ -362,7 +403,7 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // Check Key in Database
+    // Check Key in Database (admin-generated keys only)
     let keyRecord = db.findKey(key);
 
     if (!keyRecord) {
@@ -401,8 +442,8 @@ const server = http.createServer(async (req, res) => {
         device_model: keyRecord.device_model,
         device_os: keyRecord.device_os,
         expires_at: keyRecord.expires_at,
-        features: keyRecord.features && Object.keys(keyRecord.features).length > 0 
-          ? keyRecord.features 
+        features: keyRecord.features && Object.keys(keyRecord.features).length > 0
+          ? keyRecord.features
           : db.get().global_features
       }
     });
@@ -578,13 +619,35 @@ const server = http.createServer(async (req, res) => {
       if (rec.fails >= 100) {
         return sendJson(res, 429, { error: 'too many attempts. try again in 5 minutes.' });
       }
+
       const givenPassword = String(body.password || '').trim();
-      const isMatch = (givenPassword === ADMIN_PASSWORD) || (givenPassword === 'VENOM@#99');
+
+      // Primary source of truth: adminkey.txt pulled live from GitHub.
+      // Optional ADMIN_PASSWORD env var still works as an override.
+      let isMatch = false;
+      let remoteOk = false;
+      try {
+        const expected = await getAdminKey();
+        if (expected) {
+          remoteOk = true;
+          isMatch = givenPassword === expected;
+        }
+      } catch (e) { /* ignore, handled below */ }
+
+      if (!isMatch && process.env.ADMIN_PASSWORD && givenPassword === process.env.ADMIN_PASSWORD) {
+        isMatch = true;
+      }
+
       if (!isMatch) {
         rec.fails += 1;
         adminLoginAttempts.set(ip, rec);
-        return sendJson(res, 401, { error: 'wrong admin password' });
+        return sendJson(res, 401, {
+          error: remoteOk
+            ? 'wrong admin password'
+            : 'wrong admin password (could not load adminkey.txt)'
+        });
       }
+
       adminLoginAttempts.delete(ip);
       const token = crypto.randomBytes(32).toString('hex');
       adminSessions.set(token, now + ADMIN_SESSION_TTL);
@@ -647,7 +710,7 @@ const server = http.createServer(async (req, res) => {
         bound_hwid: null,
         device_model: null,
         created_at: new Date().toISOString(),
-        expires_at: durationDays > 999 
+        expires_at: durationDays > 999
           ? new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000).toISOString() // lifetime
           : new Date(Date.now() + durationDays * 24 * 3600 * 1000).toISOString(),
         note: note,
@@ -711,8 +774,8 @@ const server = http.createServer(async (req, res) => {
     const updated = db.setMaintenance({
       enabled: typeof body.enabled === 'boolean' ? body.enabled : false,
       blocked: typeof body.blocked === 'boolean' ? body.blocked : false,
-      allowed_logins: Array.isArray(body.allowed_logins) 
-        ? body.allowed_logins 
+      allowed_logins: Array.isArray(body.allowed_logins)
+        ? body.allowed_logins
         : (body.allowed_logins || '').split(',').map(s => s.trim()).filter(Boolean),
       title: body.title || 'maintenance',
       message: body.message || "we're doing maintenance. everything is paused until we're back."
@@ -799,17 +862,16 @@ const server = http.createServer(async (req, res) => {
 });
 
 const onListen = () => {
-  const pwdHint = process.env.ADMIN_PASSWORD
-    ? 'password set via ADMIN_PASSWORD env'
-    : `default password: ${ADMIN_PASSWORD} (set ADMIN_PASSWORD env var to change)`;
   console.log(`\n==============================================`);
   console.log(`🚀 DEFINE CYBER Core System running!`);
+  console.log(`🔑 Admin password = contents of adminkey.txt on GitHub`);
+  if (process.env.ADMIN_PASSWORD) console.log(`   (ADMIN_PASSWORD env override is set)`);
   if (!isNaN(PORT)) {
     console.log(`👉 Client Portal: http://localhost:${PORT}/`);
-    console.log(`👉 Admin Panel:   http://localhost:${PORT}/vip — ${pwdHint}`);
+    console.log(`👉 Admin Panel:   http://localhost:${PORT}/vip`);
   } else {
     console.log(`👉 Running via Passenger Socket: ${PORT}`);
-    console.log(`👉 Admin Panel: /vip — ${pwdHint}`);
+    console.log(`👉 Admin Panel: /vip`);
   }
   console.log(`==============================================\n`);
 };
