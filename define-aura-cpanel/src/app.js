@@ -892,12 +892,32 @@ function attachEvents() {
     });
   }
 
-  // Add to Happ: open the exact supplied import link directly.
+  // Add to Happ: import THIS user's key-scoped, expiry-bound profile.
   const happBtn = document.getElementById('happ-btn');
   if (happBtn) {
-    happBtn.addEventListener('click', () => {
-      const happImportLink = 'happ://crypt5/fzvdEzCML5RmaxpY8pRq8ctz10yy2s8ccmw6khFcyzU0BxVpvQhTdN25G6JoWy4JYfPTQJwjtK875no+KifzHXjQTHrMxsE0b5dOKfCI/vx7cAvo5YJL7kp8T9gNL2upQqn5G5qHj6c=TpHyT0kBLW+uP4Uvp29gvLOPUDPzqO/APpb9bJ0foY8kvt2bw+E8PNbsrWduTV03NBuG1h1UCWHtX7l86+5sKbvgxDyrvqY2vQWU8NE/kgnm98zmRkRv+2nd7zlWRuXqBgbbKthxBvw3s7N2VYv6ShzifboC9bR9IlI0wRKugH6OC9j6//2KDuf6zyJvm/FkHPQjkFMnZRjf3W8NkBA6ERVaHd/81dgIlxFp9YXV1nIdSDfXthMYpbKXi0uui3UXFsOiTeryZMnCFNMFL7iVJ5Rc//ksXoEcrpuMXuHj4JmEjpnLmEOXlITFKliu9MAmEQK1TxLqfPMtpvivHkcmv6o0zrEbMQu910qNLrs8lFkEAoQsrzdQutw+lB9rvKtYIcEXX5pnIBAw6gWewP8f1+rTH8BMYivKxsqk/FMbElrtzQh2xgaANYZFRuksH7X1wk+HYAjBub8d2iiLhDlnomBh4FgGPAKW4M6BqhmwkgMWtbf73IB3/faEMXAhfYFNN5dIzii8a7oFWcT7P+00936mbkxfM7p7J1naoxav6K4jEdZwmi11CcNaT9cDLt8nWAlza4WE+y7unIsd84u6yi/ljrQq0A3it3iM4HJOcBomXX6yTJ7SO+vAK6LmD8/TUazGvaYMsOxhC3WqWQK4Ajaud+9gTgMEZWAwBCRdfoY=ff';
-      window.location.href = happImportLink;
+    happBtn.addEventListener('click', async () => {
+      state.happLoading = true;
+      state.happError = null;
+      render();
+      try {
+        const res = await fetch('/api/happ', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: state.auth.key, origin: window.location.origin })
+        });
+        const data = await res.json();
+        const link = data.deepLink || data.subUrl;
+        if (link) {
+          window.location.href = link;
+        } else {
+          state.happError = 'could not build happ link';
+        }
+      } catch (e) {
+        state.happError = 'network error';
+      } finally {
+        state.happLoading = false;
+        render();
+      }
     });
   }
 
