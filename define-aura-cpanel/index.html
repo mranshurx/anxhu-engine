@@ -157,7 +157,9 @@ function clearStatus(){ statusBox.className = "status"; statusBox.innerHTML = ""
 
 function showMeta(me){
   metaBox.classList.add("show");
-  $("mStatus").textContent = (me.status || "active").toUpperCase();
+  $("mStatus").textContent = me.maintenance_unlocked
+    ? "MAINTENANCE UNLOCKED"
+    : (me.status || "active").toUpperCase();
   $("mDevice").textContent = me.device_model || detectDevice().device_model;
   if(me.expires_at){
     $("mDate").textContent = new Date(me.expires_at).toLocaleDateString(undefined,
@@ -229,7 +231,11 @@ async function validateKey(){
     }
 
     /* ---- valid ---- */
-    setStatus("ok", "✓ Key valid — you're cleared to connect.");
+    if(data.maintenance_unlocked){
+      setStatus("warn", "⚠ MAINTENANCE MODE — this key is unlocked on ALL devices.");
+    } else {
+      setStatus("ok", "✓ Key valid — you're cleared to connect.");
+    }
     showMeta(data.me || {});
     unlockHapp();
     localStorage.setItem("cyber_key", key);
