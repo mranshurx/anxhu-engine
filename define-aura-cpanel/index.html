@@ -1,205 +1,267 @@
 <!DOCTYPE html>
-<html lang="en" data-brand="silentx" class="h-full antialiased">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <meta name="theme-color" content="#060608" />
-  <title>CYBER X SILENT</title>
-  <meta name="description" content="CYBER X SILENT — key login, tunnel status, live match features." />
-  
-  <!-- OpenGraph -->
-  <meta property="og:title" content="CYBER X SILENT" />
-  <meta property="og:description" content="CYBER X SILENT — key login, tunnel status, live match features." />
-  <meta property="og:url" content="https://client.nulldash.store" />
-  <meta property="og:site_name" content="CYBER X SILENT" />
-  <meta property="og:image" content="/opengraph-image.png" />
-  <meta property="og:image:type" content="image/png" />
-  <meta property="og:image:width" content="1254" />
-  <meta property="og:image:height" content="1254" />
-  <meta property="og:type" content="website" />
-  
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="CYBER X SILENT" />
-  <meta name="twitter:description" content="CYBER X SILENT — key login, tunnel status, live match features." />
-  <meta name="twitter:image" content="/opengraph-image.png" />
-  
-  <!-- Icons -->
-  <link rel="icon" href="/icon.png" type="image/png" sizes="32x32" />
-  <link rel="apple-touch-icon" href="/apple-icon.png" type="image/png" sizes="180x180" />
-  
-  <!-- Styles -->
-  <link rel="stylesheet" href="/src/styles.css" />
-  
-  <style>
-    /* Font definitions fallback */
-    @font-face {
-      font-family: 'JetBrains Mono';
-      font-style: normal;
-      font-weight: 400 800;
-      font-display: swap;
-      src: url('/media/051742360c26797e-s.p.1bkzbscqrt8rl.woff2') format('woff2');
-    }
-    :root {
-      --color-accent: #ff2a44;
-      --color-accent-contrast: #ffffff;
-      --color-accent-glow: #ff2a44f2;
-      --color-background: #060608;
-      --color-foreground: #ffffff;
-      --color-dim: #9ca3af;
-      --color-mut: #6b7280;
-      --color-line-2: #271417;
-    }
-    body {
-      margin: 0;
-      padding: 0;
-      background-color: #060608;
-      color: #e5e7eb;
-      font-family: 'JetBrains Mono', ui-monospace, monospace;
-      min-height: 100vh;
-      overflow-x: hidden;
-      -webkit-font-smoothing: antialiased;
-    }
-    .key-logo {
-      width: 104px;
-      height: auto;
-      filter: drop-shadow(0 0 25px rgba(255, 42, 68, 0.55));
-    }
-    .key-card {
-      max-width: 285px;
-      background: rgba(14, 14, 18, 0.88) !important;
-      border: 1px solid rgba(255, 42, 68, 0.28) !important;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.9), 0 0 35px rgba(255, 42, 68, 0.15) !important;
-      backdrop-filter: blur(28px) saturate(180%) !important;
-    }
-    .hero-logo {
-      width: 220px;
-      height: auto;
-      filter: drop-shadow(0 0 38px rgba(255, 42, 68, 0.65));
-    }
-    #key-input {
-      height: 44px;
-      background: rgba(255, 255, 255, 0.05);
-      color: #ffffff;
-      border-color: #3b181e;
-      text-align: center;
-      transition: all 0.2s ease;
-    }
-    #key-input:focus {
-      border-color: #ff2a44;
-      background: rgba(255, 255, 255, 0.09);
-      box-shadow: 0 0 16px rgba(255, 42, 68, 0.35);
-      outline: none;
-    }
-    #key-input::placeholder {
-      color: #71717a;
-    }
-    #key-form .btn {
-      height: 44px;
-      background: linear-gradient(135deg, #ff2a44 0%, #cc001f 100%) !important;
-      color: #ffffff !important;
-      font-weight: 800;
-      letter-spacing: 0.15em;
-      border: 1px solid rgba(255, 255, 255, 0.2) !important;
-      box-shadow: 0 4px 18px rgba(255, 42, 68, 0.45);
-      transition: all 0.2s ease;
-    }
-    #key-form .btn:hover:not(:disabled) {
-      box-shadow: 0 6px 26px rgba(255, 42, 68, 0.7);
-      transform: translateY(-1px);
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>CYBER X SILENT — Key Login</title>
+<style>
+  :root{
+    --bg:#05070d; --panel:#0b0f1a; --line:#1b2333;
+    --cyan:#00e5ff; --cyan-dim:#0aa8c4; --txt:#e7eefc; --mut:#7b88a3;
+    --ok:#19e08a; --err:#ff4d6a; --warn:#ffb020;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;min-height:100vh;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    background:
+      radial-gradient(900px 500px at 50% -10%, rgba(0,229,255,.10), transparent 60%),
+      radial-gradient(700px 400px at 100% 110%, rgba(10,168,196,.08), transparent 60%),
+      var(--bg);
+    color:var(--txt);display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .wrap{width:100%;max-width:420px}
+  .brand{text-align:center;margin-bottom:22px}
+  .brand h1{
+    margin:0;font-size:26px;letter-spacing:3px;font-weight:800;
+    background:linear-gradient(90deg,#fff,var(--cyan));-webkit-background-clip:text;
+    background-clip:text;color:transparent;
+  }
+  .brand p{margin:6px 0 0;font-size:11px;letter-spacing:4px;color:var(--mut);text-transform:uppercase}
+  .card{
+    background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));
+    border:1px solid var(--line);border-radius:16px;padding:20px;
+    box-shadow:0 20px 50px rgba(0,0,0,.5);
+  }
+  label{display:block;font-size:11px;letter-spacing:2px;color:var(--mut);margin-bottom:8px;text-transform:uppercase}
+  input{
+    width:100%;padding:14px 14px;border-radius:11px;border:1px solid var(--line);
+    background:#070b14;color:var(--txt);font-size:15px;font-family:ui-monospace,Consolas,monospace;
+    letter-spacing:1px;outline:none;transition:.18s;
+  }
+  input:focus{border-color:var(--cyan-dim);box-shadow:0 0 0 3px rgba(0,229,255,.12)}
+  input::placeholder{color:#3d4862}
+  .btn{
+    width:100%;margin-top:12px;padding:14px;border:none;border-radius:11px;cursor:pointer;
+    font-size:14px;font-weight:700;letter-spacing:2px;transition:.18s;text-transform:uppercase;
+  }
+  .btn-validate{background:linear-gradient(90deg,var(--cyan-dim),var(--cyan));color:#03121a}
+  .btn-validate:active{transform:scale(.985)}
+  .btn-validate:disabled{opacity:.55;cursor:wait}
+  .status{
+    margin-top:14px;padding:12px 14px;border-radius:10px;font-size:13px;
+    border:1px solid transparent;display:none;line-height:1.5;
+  }
+  .status.show{display:block}
+  .status.error{background:rgba(255,77,106,.09);border-color:rgba(255,77,106,.35);color:#ffb3c1}
+  .status.ok{background:rgba(25,224,138,.08);border-color:rgba(25,224,138,.3);color:#9df5cf}
+  .status.load{background:rgba(0,229,255,.07);border-color:rgba(0,229,255,.25);color:#a5ecf8}
+  .status.warn{background:rgba(255,176,32,.08);border-color:rgba(255,176,32,.3);color:#ffd894}
 
-    #happ-btn {
-      background: linear-gradient(135deg, #ff2a44 0%, #cc001f 100%) !important;
-      color: #ffffff !important;
-      font-weight: 800 !important;
-      border: 1px solid rgba(255, 255, 255, 0.2) !important;
-      box-shadow: 0 4px 18px rgba(255, 42, 68, 0.45);
-      transition: all 0.2s ease;
-    }
-    #happ-btn:hover:not(:disabled) {
-      box-shadow: 0 6px 26px rgba(255, 42, 68, 0.7);
-      transform: translateY(-1px);
-    }
+  .meta{display:none;margin-top:16px;border-top:1px dashed var(--line);padding-top:16px}
+  .meta.show{display:block}
+  .row{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;padding:7px 0}
+  .row .k{color:var(--mut)}
+  .row .v{color:var(--txt);font-weight:600;text-align:right;font-family:ui-monospace,monospace}
+  .v.ok{color:var(--ok)}
+  .count{color:var(--cyan);font-family:ui-monospace,monospace;font-weight:700;letter-spacing:1px}
 
-    /* Cards */
-    .card {
-      background: rgba(14, 14, 18, 0.85) !important;
-      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-    .card:hover {
-      border-color: rgba(255, 42, 68, 0.35) !important;
-    }
-
-    /* Missing compiled utilities */
-    .transition-all { transition: all .2s; }
-    .gap-1\.5 { gap: .375rem; }
-    .opacity-100 { opacity: 1; }
-    .opacity-35 { opacity: .35; }
-    .text-\[11px\] { font-size: 11px; }
-    .text-\[9\.5px\] { font-size: 9.5px; }
-    .tracking-\[0\.08em\] { letter-spacing: .08em; }
-    .tracking-\[0\.1em\] { letter-spacing: .1em; }
-    .tracking-\[0\.15em\] { letter-spacing: .15em; }
-    .tracking-\[0\.2em\] { letter-spacing: .2em; }
-    .rounded-\[14px\] { border-radius: 14px; }
-    .rounded-\[20px\] { border-radius: 20px; }
-    .w-\[68px\] { width: 68px; }
-    .p-1\.5 { padding: .375rem; }
-    .py-2\.5 { padding-top: .625rem; padding-bottom: .625rem; }
-    .top-0\.5 { top: .125rem; }
-    .left-0\.5 { left: .125rem; }
-    .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
-    .cursor-pointer { cursor: pointer; }
-    .shadow-md { box-shadow: 0 4px 6px -1px rgba(0,0,0,.35), 0 2px 4px -2px rgba(0,0,0,.35); }
-    .bg-white\/10 { background: rgba(255,255,255,.10); }
-    .bg-white\/5 { background: rgba(255,255,255,.05); }
-    .bg-white\/\[0\.02\] { background: rgba(255,255,255,.02); }
-    .bg-white\/\[0\.03\] { background: rgba(255,255,255,.03); }
-    .border-white\/10 { border-color: rgba(255,255,255,.10); }
-    .disabled\:opacity-40:disabled { opacity: .4; }
-    .hover\:text-foreground:hover { color: #ffffff; }
-
-    /* Feature toggles */
-    .toggle-switch { cursor: pointer; transition: all 0.25s ease; }
-    .toggle-on { background: #ff2a44 !important; box-shadow: 0 0 12px rgba(255, 42, 68, 0.6) !important; }
-    .toggle-off { background: rgba(255,255,255,.12); }
-    .toggle-knob-on { left: calc(100% - 1.375rem); background: #ffffff !important; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
-    .toggle-knob-off { left: .125rem; background: rgba(202,202,202,.7); }
-
-    /* Marker type chips */
-    .marker-chip-btn { cursor: pointer; }
-    .marker-chip-on {
-      background: linear-gradient(135deg, #ff2a44 0%, #b8001b 100%) !important;
-      color: #ffffff !important;
-      font-weight: 700;
-      border: 1px solid rgba(255, 255, 255, 0.25) !important;
-      box-shadow: 0 4px 14px rgba(255, 42, 68, 0.45) !important;
-    }
-    .marker-chip-off { background: rgba(255,255,255,.03); color: #8a8a8e; }
-    .marker-chip-off:hover { color: #ffffff; }
-
-    /* Bottom Nav active tab */
-    [data-nav-tab].text-foreground {
-      background: linear-gradient(135deg, rgba(255, 42, 68, 0.25) 0%, rgba(255, 42, 68, 0.1) 100%) !important;
-      color: #ffffff !important;
-      border: 1px solid rgba(255, 42, 68, 0.45) !important;
-      box-shadow: 0 0 14px rgba(255, 42, 68, 0.35) !important;
-    }
-
-    /* Remaining missing utilities */
-    .text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
-    .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
-    .gap-8 { gap: 2rem; }
-    .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0,0,0,.6); }
-    .hero-glow { filter: drop-shadow(0 0 45px rgba(255, 42, 68, 0.65)); }
-    .lang-select-btn { cursor: pointer; border: 0; background: transparent; width: 100%; color: inherit; font-family: inherit; }
-  </style>
+  .btn-happ{
+    margin-top:16px;display:none;
+    background:linear-gradient(90deg,#19e08a,#00e5ff);color:#03121a;
+    animation:pulse 2.4s infinite;
+  }
+  .btn-happ.show{display:block}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,229,255,.35)}50%{box-shadow:0 0 0 10px rgba(0,229,255,0)}}
+  .hint{font-size:11px;color:var(--mut);text-align:center;margin-top:10px;display:none}
+  .hint.show{display:block}
+  .foot{text-align:center;font-size:10.5px;color:#414c66;margin-top:16px;letter-spacing:1px}
+</style>
 </head>
-<body class="min-h-full bg-background text-foreground overflow-x-hidden">
-  <div id="app"></div>
-  <script type="module" src="/src/app.js"></script>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <h1>CYBER X SILENT</h1>
+    <p>License Portal</p>
+  </div>
+
+  <div class="card">
+    <label for="keyInput">License Key</label>
+    <input id="keyInput" type="text" placeholder="CYBER-XXXX-XXXX-XXXX"
+           autocomplete="off" autocapitalize="characters" spellcheck="false" />
+    <button id="validateBtn" class="btn btn-validate">Validate Key</button>
+
+    <div id="status" class="status"></div>
+
+    <div id="meta" class="meta">
+      <div class="row"><span class="k">Status</span><span class="v ok" id="mStatus">—</span></div>
+      <div class="row"><span class="k">Device</span><span class="v" id="mDevice">—</span></div>
+      <div class="row"><span class="k">Expires in</span><span class="v count" id="mExpiry">—</span></div>
+      <div class="row"><span class="k">Expires at</span><span class="v" id="mDate">—</span></div>
+    </div>
+
+    <button id="addHapp" class="btn btn-happ">⬇ ADD TO HAPP</button>
+    <div id="hint" class="hint">HAPP not detected — install it first, then tap again.</div>
+  </div>
+
+  <div class="foot">CYBER X SILENT · powered by HAPP</div>
+</div>
+
+<script>
+/* ============================================================
+   THE EXACT CONFIG — DO NOT MODIFY THIS STRING
+   ============================================================ */
+const HAPP_LINK = "happ://crypt5/fzvdVVlxcBpOBo3iWvYnYhoF1022U08Tk26/qtguon8nfekXjdGbsTduAH3pEnuNpo4/DTUi1/CWsfH93oLirPrd3pw5H9oMuJB3ABhRUeXNaL5TETzoIEFoCnOeFjEWBQsn9ekQLEM=l1U1RqAhsbnopMgC2E5SfXe4hczpoc1YQ3/upcbXlo8wEqQNg8tG0s48A2yy4HV0Nd3bFcTFuXuIh8O5A54UijrFDr9kTJ8fkRRlkj6L1KHhJ9OMyGW1P75A5gKVi1q4ijU4dRjZZbe5D+JUqPZeLJH8RSyMM4IophDnu72+wR7ceAi2AksXDzbKoYcHqXhzBz8U0zcTy8rd/W3VsqLullsQRRKm6efeBcoiF6F2mgyGegpQ5qxBChuaK8G3Ix9uXb3RdU2bQym2URhdSWm7pPFM0bCwUNeSBpVc4yP0QeE+YSSITqKqv+pDvAnJhVdHoawZdn9qwHJbzIz5Rl1wlY5IBeQP0GbjvwQ8Jwnq3T/vyhntg8aioEEJgnLjA9VRJrkR5oB5NePh2PGCoBBMdvq2YRBgVkodKCQb+u/rBPm4g2wxl9pSWsAYTU/lzQDoiQAtAqzt2dKMW0IG2XFVVejE8NImCYzrVYhVzqQqiTIGz8UBoOejYj51oUF+SVHFk4+Q/p8OktRo7qx1O6IFgH1R01lx29A44ErD96+n78TXfsBIrE1QXc4O5IFqSQCtvAFT1C9/idwNUttH/JyMPa57AxOeYMb9dK6/G5Kg6P57Lp1l45bTwFNuULdmD0/vb643GVjV92XYWalGjgmtDjgchcFTPTC8I5aVScpHfoM=ff";
+
+const API_REDEEM = "/api/redeem";   // your existing admin-panel endpoint
+
+const $ = id => document.getElementById(id);
+const statusBox = $("status");
+const metaBox   = $("meta");
+const addBtn    = $("addHapp");
+const hint      = $("hint");
+let countdownTimer = null;
+
+/* ---------- stable per-device HWID (for the server's device lock) ---------- */
+function getHWID(){
+  let h = localStorage.getItem("cyber_hwid");
+  if(!h){
+    const bytes = crypto.getRandomValues(new Uint8Array(8));
+    h = "CYBER-" + [...bytes].map(b => b.toString(16).padStart(2,"0")).join("").toUpperCase();
+    localStorage.setItem("cyber_hwid", h);
+  }
+  return h;
+}
+
+function detectDevice(){
+  const ua = navigator.userAgent;
+  let os = "Unknown OS", model = "Unknown Device";
+  if(/Android/i.test(ua)){
+    const v = ua.match(/Android (\d+(\.\d+)?)/);
+    os = v ? "Android " + v[1] : "Android";
+    const m = ua.match(/;\s*([A-Za-z0-9\-\s_]+)\s+Build\//);
+    model = m ? m[1].trim() : "Android Device";
+  } else if(/iPhone/i.test(ua)){ os = "iOS"; model = "iPhone"; }
+  else if(/iPad/i.test(ua)){ os = "iPadOS"; model = "iPad"; }
+  else if(/Windows/i.test(ua)){ os = "Windows"; model = "Windows PC"; }
+  else if(/Macintosh|Mac OS X/i.test(ua)){ os = "macOS"; model = "Mac"; }
+  return { device_model: model, device_os: os };
+}
+
+/* ---------------------------- UI helpers ---------------------------- */
+function setStatus(kind, html){
+  statusBox.className = "status show " + kind;
+  statusBox.innerHTML = html;
+}
+function clearStatus(){ statusBox.className = "status"; statusBox.innerHTML = ""; }
+
+function showMeta(me){
+  metaBox.classList.add("show");
+  $("mStatus").textContent = (me.status || "active").toUpperCase();
+  $("mDevice").textContent = me.device_model || detectDevice().device_model;
+  if(me.expires_at){
+    $("mDate").textContent = new Date(me.expires_at).toLocaleDateString(undefined,
+      { year:"numeric", month:"short", day:"numeric" });
+    startCountdown(me.expires_at);
+  } else {
+    $("mDate").textContent = "—";
+    $("mExpiry").textContent = "—";
+  }
+}
+
+function startCountdown(expiresAt){
+  clearInterval(countdownTimer);
+  const end = new Date(expiresAt).getTime();
+  const tick = () => {
+    const diff = end - Date.now();
+    if(diff <= 0){ $("mExpiry").textContent = "Expired"; return; }
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor(diff % 86400000 / 3600000);
+    const m = Math.floor(diff % 3600000 / 60000);
+    const s = Math.floor(diff % 60000 / 1000);
+    $("mExpiry").textContent = d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m ${s}s`;
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+function unlockHapp(){
+  addBtn.classList.add("show");
+  metaBox.classList.add("show");
+}
+
+function resetUI(){
+  clearInterval(countdownTimer);
+  metaBox.classList.remove("show");
+  addBtn.classList.remove("show");
+  hint.classList.remove("show");
+}
+
+/* ---------------------------- validation ---------------------------- */
+async function validateKey(){
+  const raw = $("keyInput").value.trim();
+  if(!raw){ setStatus("error", "Enter your license key."); return; }
+
+  const key = raw.toUpperCase();
+  $("validateBtn").disabled = true;
+  $("validateBtn").textContent = "Checking…";
+  resetUI();
+  setStatus("load", "Validating key…");
+
+  try{
+    const res = await fetch(API_REDEEM, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, hwid: getHWID(), ...detectDevice() })
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if(res.status === 403){
+      setStatus("warn", data.error || "Access blocked (maintenance / device lock).");
+      $("validateBtn").disabled = false; $("validateBtn").textContent = "Validate Key";
+      return;
+    }
+    if(!res.ok || !data.ok){
+      setStatus("error", data.error || "Invalid key.");
+      $("validateBtn").disabled = false; $("validateBtn").textContent = "Validate Key";
+      return;
+    }
+
+    /* ---- valid ---- */
+    setStatus("ok", "✓ Key valid — you're cleared to connect.");
+    showMeta(data.me || {});
+    unlockHapp();
+    localStorage.setItem("cyber_key", key);
+
+  }catch(err){
+    setStatus("error", "Network error. Check your connection and retry.");
+  }finally{
+    $("validateBtn").disabled = false;
+    $("validateBtn").textContent = "Validate Key";
+  }
+}
+
+/* ---------------------------- ADD TO HAPP ---------------------------- */
+function addToHapp(){
+  hint.classList.remove("show");
+  const t = Date.now();
+  window.location.href = HAPP_LINK;              // fires the intent / scheme
+  setTimeout(() => {
+    if(Date.now() - t < 2000) hint.classList.add("show");
+  }, 1600);
+}
+
+/* ---------------------------- wiring ---------------------------- */
+$("validateBtn").addEventListener("click", validateKey);
+addBtn.addEventListener("click", addToHapp);
+$("keyInput").addEventListener("keydown", e => { if(e.key === "Enter") validateKey(); });
+
+/* auto re-validate a previously used key on load */
+(function init(){
+  const saved = localStorage.getItem("cyber_key");
+  if(saved){ $("keyInput").value = saved; validateKey(); }
+})();
+</script>
 </body>
 </html>
