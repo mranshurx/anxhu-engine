@@ -4,13 +4,13 @@ export const CONFIG = {
   "KEY_PREFIX": "CYBER",
   "KEY_PLACEHOLDER": "CYBER-XXXX-XXXX-XXXX",
   "IS_XREG": false,
-  "SOCIAL_DISCORD_URL": "https://discord.gg/ptQUycrU3A",
-  "SOCIAL_TELEGRAM_URL": "",
-  "SOCIAL_WHATSAPP_URL": "https://chat.whatsapp.com/JRbNoSDwnH1DNvE45Hx5K4",
+  "SOCIAL_DISCORD_URL": "",
+  "SOCIAL_TELEGRAM_URL": "https://t.me/cyberengineontop",
+  "SOCIAL_WHATSAPP_URL": "",
   "HAPP_IOS_URL": "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215",
   "HAPP_ANDROID_URL": "https://play.google.com/store/apps/details?id=com.happproxy",
   "MARKER_TYPES": [
-    "Define Aura",
+    "Cyber Engine",
     "DreamLand",
     "Ice Wall",
     "Moco",
@@ -22,7 +22,7 @@ export const CONFIG = {
   "DEFAULT_FEATURES": {
     "marker": {
       "enabled": true,
-      "type": "Define Aura"
+      "type": "Cyber Engine"
     },
     "aimLag": {
       "enabled": false,
