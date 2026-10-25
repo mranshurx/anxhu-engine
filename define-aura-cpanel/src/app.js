@@ -2,11 +2,12 @@ import { CONFIG } from './config.js';
 import { TRANSLATIONS } from './translations.js';
 import { Icons } from './icons.js';
 
+// State Store
 const state = {
   lang: localStorage.getItem('aura_lang') || localStorage.getItem('pmm_lang') || 'en',
   isLangOpen: false,
-  tab: 'status',
-  manageSubView: 'list',
+  tab: 'status', // 'status' | 'features' | 'manage'
+  manageSubView: 'list', // 'list' | 'notes' | 'guide'
   auth: {
     loggedIn: false,
     key: '',
@@ -33,6 +34,7 @@ const state = {
   timerInterval: null
 };
 
+// Check local storage session
 const savedSession = localStorage.getItem('aura_session') || localStorage.getItem('pmm_session');
 if (savedSession) {
   try {
@@ -46,6 +48,7 @@ if (savedSession) {
   } catch (e) {}
 }
 
+// Translation helper
 function t(key) {
   const dict = TRANSLATIONS[state.lang] || TRANSLATIONS.en;
   return dict[key] || TRANSLATIONS.en[key] || key;
@@ -57,6 +60,7 @@ function escHtml(s) {
   ));
 }
 
+// Strip GPU/driver junk from stored device names (old DB records)
 function cleanDeviceName(model) {
   let s = String(model == null ? '' : model).trim();
   if (!s) return '';
@@ -66,11 +70,13 @@ function cleanDeviceName(model) {
   return s;
 }
 
+// Real Hardware Fingerprinting & Actual Device Identification
 async function getRealClientDevice() {
   const ua = navigator.userAgent || '';
   let os = 'Unknown OS';
   let deviceName = 'Unknown Device';
 
+  // 1. Detect Real OS
   if (/Windows NT 10.0/i.test(ua)) os = 'Windows 10/11';
   else if (/Windows NT 6.3/i.test(ua)) os = 'Windows 8.1';
   else if (/Windows NT 6.1/i.test(ua)) os = 'Windows 7';
@@ -88,6 +94,7 @@ async function getRealClientDevice() {
     os = m ? `Android ${m[1]}` : 'Android';
   } else if (/Linux/i.test(ua)) os = 'Linux';
 
+  // 2. Detect Real Hardware GPU via WebGL
   let gpuRenderer = '';
   try {
     const canvas = document.createElement('canvas');
@@ -102,6 +109,7 @@ async function getRealClientDevice() {
     }
   } catch (e) {}
 
+  // 3. Format Real Device Model Name (clean display; GPU stays in HWID metrics only)
   if (/iPhone/i.test(ua)) {
     const w = screen.width * (window.devicePixelRatio || 1);
     const h = screen.height * (window.devicePixelRatio || 1);
@@ -123,6 +131,7 @@ async function getRealClientDevice() {
     deviceName = `${os} Desktop`;
   }
 
+  // 4. Generate Stable Hardware ID (HWID)
   let hwid = localStorage.getItem('aura_hwid') || localStorage.getItem('pmm_hwid');
   if (!hwid) {
     const metrics = [
@@ -133,6 +142,7 @@ async function getRealClientDevice() {
       new Date().getTimezoneOffset(),
       gpuRenderer
     ];
+
     try {
       const c = document.createElement('canvas');
       c.width = 160;
@@ -163,10 +173,13 @@ async function getRealClientDevice() {
   return { hwid, device_model: deviceName, device_os: os };
 }
 
+// Smart access key formatter supporting CYBER, DEFINE, PMM, etc.
 function formatKey(val) {
+  // Preserve the exact admin-generated key; formatting must not change its characters.
   return String(val || '').trim().toUpperCase().replace(/\s+/g, '');
 }
 
+// Countdown formatter
 function formatCountdown(targetIso) {
   if (!targetIso) return '—';
   const diff = new Date(targetIso).getTime() - Date.now();
@@ -181,6 +194,7 @@ function formatCountdown(targetIso) {
   return `${mins}m ${secs}s`;
 }
 
+// Fetch live maintenance status from server
 async function checkMaintenance() {
   try {
     const res = await fetch('/api/maintenance');
@@ -192,21 +206,28 @@ async function checkMaintenance() {
   } catch (e) {}
 }
 
+// Listen to real-time events via SSE
 function initSSE() {
   try {
     const es = new EventSource('/api/events');
     es.addEventListener('maintenance', (e) => {
-      try { state.maintenance = JSON.parse(e.data); render(); } catch (err) {}
+      try {
+        state.maintenance = JSON.parse(e.data);
+        render();
+      } catch (err) {}
     });
     es.addEventListener('logout', (e) => {
       try {
         const d = JSON.parse(e.data);
-        if (!d.key || d.key === state.auth.key) logout();
+        if (!d.key || d.key === state.auth.key) {
+          logout();
+        }
       } catch (err) {}
     });
   } catch (e) {}
 }
 
+// Main Render Function
 function render() {
   const root = document.getElementById('app');
   if (!root) return;
@@ -218,6 +239,7 @@ function render() {
 
   let html = '';
 
+  // Background ambient drift glow (Red Aura Theme)
   html += `
     <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-background">
       <div class="animate-drift-a absolute left-1/2 top-[-14%] h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-[#ff2a44]/[0.09] blur-[130px]"></div>
@@ -225,6 +247,7 @@ function render() {
     </div>
   `;
 
+  // Top Maintenance Banner (Only displays when maintenance is active on the backend)
   if (state.maintenance && state.maintenance.enabled) {
     html += `
       <div class="fixed inset-x-0 top-0 z-50 flex items-start justify-center gap-2 bg-[#fbbf24]/15 px-4 py-2.5 text-center text-[11px] text-[#fbbf24] backdrop-blur">
@@ -238,13 +261,18 @@ function render() {
     `;
   }
 
-  if (!state.auth.loggedIn) html += renderKeyGate();
-  else html += renderDashboard();
+  // Render KeyGate or Dashboard
+  if (!state.auth.loggedIn) {
+    html += renderKeyGate();
+  } else {
+    html += renderDashboard();
+  }
 
   root.innerHTML = html;
   attachEvents();
 }
 
+// Pure & Authentic KeyGate View (1:1 with client.nulldash.store)
 function renderKeyGate() {
   return `
     <main class="relative flex min-h-dvh flex-col items-center justify-center px-6">
@@ -279,12 +307,14 @@ function renderKeyGate() {
   `;
 }
 
+// Pure & Authentic Dashboard View
 function renderDashboard() {
   const me = state.auth.me;
 
   return `
     <main class="relative mx-auto flex min-h-dvh max-w-md flex-col px-5 pb-32 pt-6">
       
+      <!-- Header with Status and Language Dropdown -->
       <div class="flex items-center justify-between gap-3 px-1 py-4">
         <div class="flex min-w-0 items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-foreground">
           ${state.tab === 'manage'
@@ -303,6 +333,7 @@ function renderDashboard() {
         </div>
       </div>
 
+      <!-- Tab Content Area -->
       <div class="flex flex-1 flex-col animate-rise">
         ${state.tab === 'status' ? renderStatusTab(me) : ''}
         ${state.tab === 'features' ? renderFeaturesTab(me) : ''}
@@ -311,10 +342,12 @@ function renderDashboard() {
 
     </main>
 
+    <!-- Floating Bottom Glass Navigation -->
     ${renderBottomNav()}
   `;
 }
 
+// Language Dropdown
 function renderLangDropdown() {
   const languages = [
     { code: 'ar', name: 'العربية' },
@@ -341,6 +374,7 @@ function renderLangDropdown() {
   `;
 }
 
+// Status Tab View
 function renderStatusTab(me) {
   const expiresCountdown = formatCountdown(me.expires_at);
 
@@ -374,6 +408,7 @@ function renderStatusTab(me) {
   `;
 }
 
+// Features Tab View
 function renderFeaturesTab(me) {
   const f = me.features;
   const marker = f.marker || { enabled: true, type: 'Define Aura' };
@@ -389,6 +424,7 @@ function renderFeaturesTab(me) {
   return `
     <div class="flex flex-col gap-4">
 
+      <!-- Marker Card -->
       <div class="card p-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-dim">
@@ -415,6 +451,7 @@ function renderFeaturesTab(me) {
         </div>
       </div>
 
+      <!-- Aimpoint Card -->
       <div class="card p-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-dim">
@@ -427,6 +464,7 @@ function renderFeaturesTab(me) {
         <p class="feat-desc">${t('d_aimpoint')}</p>
       </div>
 
+      <!-- Aim Lag Card -->
       <div class="card p-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-dim">
@@ -454,6 +492,7 @@ function renderFeaturesTab(me) {
         </div>
       </div>
 
+      <!-- Gloo Rotation Card -->
       <div class="card p-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-dim">
@@ -486,6 +525,7 @@ function renderFeaturesTab(me) {
         </div>
       </div>
 
+      <!-- Fast Revive Card -->
       <div class="card p-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-dim">
@@ -502,15 +542,21 @@ function renderFeaturesTab(me) {
   `;
 }
 
+// Manage Tab View
 function renderManageTab() {
-  if (state.manageSubView === 'notes') return renderUpdateNotes();
-  if (state.manageSubView === 'guide') return renderSetupGuide();
+  if (state.manageSubView === 'notes') {
+    return renderUpdateNotes();
+  }
+  if (state.manageSubView === 'guide') {
+    return renderSetupGuide();
+  }
 
   const latestNote = CONFIG.UPDATE_NOTES[0];
 
   return `
     <div class="flex flex-1 flex-col gap-3">
 
+      <!-- Update notes preview -->
       <button id="view-notes-btn" class="w-full text-left">
         <div class="card relative p-4 pr-10 transition-colors hover:border-foreground/30">
           <div class="text-sm font-bold text-foreground">${t('update_notes')}</div>
@@ -523,6 +569,7 @@ function renderManageTab() {
         </div>
       </button>
 
+      <!-- Setup guide card -->
       <button id="view-guide-btn" class="w-full text-left">
         <div class="card flex items-center justify-between p-4 transition-colors hover:border-foreground/30">
           <div class="flex items-center gap-3">
@@ -535,6 +582,7 @@ function renderManageTab() {
         </div>
       </button>
 
+      <!-- Telegram community -->
       <a href="${CONFIG.SOCIAL_TELEGRAM_URL}" target="_blank" rel="noopener noreferrer" class="w-full text-left">
         <div class="card flex items-center justify-between p-4 transition-colors hover:border-foreground/30">
           <div class="flex items-center gap-3">
@@ -547,6 +595,7 @@ function renderManageTab() {
         </div>
       </a>
 
+      <!-- Log out -->
       <div class="mt-auto pt-6">
         <button id="logout-btn" class="w-full text-left">
           <div class="card flex items-center justify-between p-4 transition-colors border-accent-bad/25 hover:border-accent-bad/50">
@@ -564,6 +613,7 @@ function renderManageTab() {
   `;
 }
 
+// Update Notes View
 function renderUpdateNotes() {
   return `
     <div class="flex flex-col gap-4">
@@ -589,6 +639,7 @@ function renderUpdateNotes() {
   `;
 }
 
+// Setup Guide View
 function renderSetupGuide() {
   return `
     <div class="flex flex-col gap-4">
@@ -641,6 +692,7 @@ function renderSetupGuide() {
   `;
 }
 
+// Floating Bottom Navigation Bar
 function renderBottomNav() {
   const tabs = [
     { id: 'status', label: t('nav_home'), icon: Icons.skull(18) },
@@ -668,6 +720,7 @@ function renderBottomNav() {
   `;
 }
 
+// Clipboard copy with legacy fallback (http origins have no navigator.clipboard)
 async function copyText(text) {
   try {
     if (navigator.clipboard && window.isSecureContext) {
@@ -685,6 +738,7 @@ async function copyText(text) {
   document.body.removeChild(ta);
 }
 
+// Attach Event Listeners
 function attachEvents() {
   const keyInput = document.getElementById('key-input');
   if (keyInput) {
@@ -702,7 +756,11 @@ function attachEvents() {
       e.preventDefault();
       const val = state.keyInput.trim();
 
-      if (!val) { state.error = 'enter your full key'; render(); return; }
+      if (!val) {
+        state.error = 'enter your full key';
+        render();
+        return;
+      }
 
       state.loading = true;
       state.error = null;
@@ -725,7 +783,9 @@ function attachEvents() {
         if (res.ok) {
           state.auth.loggedIn = true;
           state.auth.key = val;
-          if (data.me) state.auth.me = { ...state.auth.me, ...data.me };
+          if (data.me) {
+            state.auth.me = { ...state.auth.me, ...data.me };
+          }
           localStorage.setItem('aura_session', JSON.stringify({
             key: val,
             me: state.auth.me,
@@ -745,18 +805,27 @@ function attachEvents() {
 
   const langBtn = document.getElementById('lang-btn');
   if (langBtn) {
-    langBtn.addEventListener('click', () => { state.isLangOpen = !state.isLangOpen; render(); });
+    langBtn.addEventListener('click', () => {
+      state.isLangOpen = !state.isLangOpen;
+      render();
+    });
   }
 
   const langOverlay = document.getElementById('lang-overlay');
   if (langOverlay) {
-    langOverlay.addEventListener('click', () => { state.isLangOpen = false; render(); });
+    langOverlay.addEventListener('click', () => {
+      state.isLangOpen = false;
+      render();
+    });
   }
 
   document.querySelectorAll('.lang-select-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const code = btn.getAttribute('data-lang');
-      if (code) { state.lang = code; localStorage.setItem('aura_lang', code); }
+      if (code) {
+        state.lang = code;
+        localStorage.setItem('aura_lang', code);
+      }
       state.isLangOpen = false;
       render();
     });
@@ -774,6 +843,7 @@ function attachEvents() {
     });
   });
 
+  // Feature Toggles
   document.querySelectorAll('[data-toggle]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const field = btn.getAttribute('data-toggle');
@@ -792,6 +862,7 @@ function attachEvents() {
     });
   });
 
+  // Marker Type Pills
   document.querySelectorAll('[data-marker-type]').forEach(btn => {
     btn.addEventListener('click', () => {
       const type = btn.getAttribute('data-marker-type');
@@ -803,6 +874,7 @@ function attachEvents() {
     });
   });
 
+  // Gloo Slider
   const glooSlider = document.getElementById('gloo-slider');
   if (glooSlider) {
     glooSlider.addEventListener('input', (e) => {
@@ -810,13 +882,17 @@ function attachEvents() {
       state.auth.me.features.gloo.yawDeg = deg;
       const degDisplay = document.getElementById('gloo-deg-val');
       if (degDisplay) degDisplay.innerText = deg > 0 ? `+${deg}°` : `${deg}°`;
+      
       const glooPct = ((deg - -180) / 360) * 100;
       glooSlider.style.background = `linear-gradient(90deg, var(--color-accent) ${glooPct}%, var(--color-line-2) ${glooPct}%)`;
     });
-    glooSlider.addEventListener('change', () => { saveFeatures(state.auth.me.features); });
+
+    glooSlider.addEventListener('change', () => {
+      saveFeatures(state.auth.me.features);
+    });
   }
 
-  // ADD TO HAPP — key-scoped, expiry-bound import
+  // ADD TO HAPP — relay-wrapped, key-scoped, expiry-bound import
   const happBtn = document.getElementById('happ-btn');
   if (happBtn) {
     happBtn.addEventListener('click', async () => {
@@ -830,9 +906,12 @@ function attachEvents() {
           body: JSON.stringify({ key: state.auth.key, origin: window.location.origin })
         });
         const data = await res.json();
-        const link = data.deepLink || data.subUrl;
-        if (link) window.location.href = link;
-        else state.happError = 'could not build happ link';
+        const link = data.importUrl || data.subUrl;
+        if (link) {
+          window.location.href = link;
+        } else {
+          state.happError = 'could not build happ link';
+        }
       } catch (e) {
         state.happError = 'network error';
       } finally {
@@ -842,31 +921,49 @@ function attachEvents() {
     });
   }
 
+  // Manage navigation
   const viewNotesBtn = document.getElementById('view-notes-btn');
   if (viewNotesBtn) {
-    viewNotesBtn.addEventListener('click', () => { state.manageSubView = 'notes'; render(); window.scrollTo(0, 0); });
+    viewNotesBtn.addEventListener('click', () => {
+      state.manageSubView = 'notes';
+      render();
+      window.scrollTo(0, 0);
+    });
   }
 
   const viewGuideBtn = document.getElementById('view-guide-btn');
   if (viewGuideBtn) {
-    viewGuideBtn.addEventListener('click', () => { state.manageSubView = 'guide'; render(); window.scrollTo(0, 0); });
+    viewGuideBtn.addEventListener('click', () => {
+      state.manageSubView = 'guide';
+      render();
+      window.scrollTo(0, 0);
+    });
   }
 
   const backToManageBtn = document.getElementById('back-to-manage-btn');
   if (backToManageBtn) {
-    backToManageBtn.addEventListener('click', () => { state.manageSubView = 'list'; render(); window.scrollTo(0, 0); });
+    backToManageBtn.addEventListener('click', () => {
+      state.manageSubView = 'list';
+      render();
+      window.scrollTo(0, 0);
+    });
   }
 
+  // Logout
   const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) logoutBtn.addEventListener('click', logout);
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', logout);
+  }
 }
 
+// Save features to server and localStorage
 async function saveFeatures(f) {
   localStorage.setItem('aura_session', JSON.stringify({
     key: state.auth.key,
     me: state.auth.me,
     features: f
   }));
+
   try {
     await fetch('/api/features', {
       method: 'PATCH',
@@ -877,7 +974,9 @@ async function saveFeatures(f) {
 }
 
 function logout() {
-  try { fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+  try {
+    fetch('/api/logout', { method: 'POST' });
+  } catch (e) {}
   localStorage.removeItem('aura_session');
   localStorage.removeItem('pmm_session');
   state.auth.loggedIn = false;
@@ -887,6 +986,7 @@ function logout() {
   render();
 }
 
+// Timer ticker for countdown
 if (!state.timerInterval) {
   state.timerInterval = setInterval(() => {
     const el = document.getElementById('countdown-display');
@@ -896,6 +996,7 @@ if (!state.timerInterval) {
   }, 1000);
 }
 
+// Sync device info with server if already logged in
 async function syncDeviceSession() {
   if (!state.auth.loggedIn || !state.auth.key) return;
   try {
@@ -925,6 +1026,7 @@ async function syncDeviceSession() {
   } catch (e) {}
 }
 
+// Initial Boot
 checkMaintenance();
 initSSE();
 render();
