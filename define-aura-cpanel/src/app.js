@@ -20,7 +20,7 @@ const state = {
       features: JSON.parse(JSON.stringify(CONFIG.DEFAULT_FEATURES))
     }
   },
-  keyInput: 'CYBER-DHJS-68FS',
+  keyInput: '',
   loading: false,
   error: null,
   maintenance: {
